@@ -1,0 +1,3 @@
+/home/julius/git/darpa_mapping_sim_server_testing/trajectory_planner/build/CMakeFiles/fmpc_uncut.dir
+/home/julius/git/darpa_mapping_sim_server_testing/trajectory_planner/build/CMakeFiles/edit_cache.dir
+/home/julius/git/darpa_mapping_sim_server_testing/trajectory_planner/build/CMakeFiles/rebuild_cache.dir
