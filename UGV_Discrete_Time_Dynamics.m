@@ -48,3 +48,5 @@ for r = 1:size(Bd,1)
 end
 
 fclose(fid);
+
+
