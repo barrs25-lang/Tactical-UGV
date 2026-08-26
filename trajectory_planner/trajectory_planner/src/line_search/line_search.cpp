@@ -9,7 +9,7 @@ float objective_function_value(F_MPC_UNCUT* fmpc, Eigen::MatrixXf* X, Eigen::Mat
 	Eigen::MatrixXf* tildeR = new Eigen::MatrixXf[(*fmpc).mpc_params.T];
 	Eigen::MatrixXf* tildeq = new Eigen::MatrixXf[(*fmpc).mpc_params.T];
 	Eigen::MatrixXf* Zk = new Eigen::MatrixXf[(*fmpc).mpc_params.T];
-	Eigen::MatrixXf goal_n = Eigen::MatrixXf::Zero((*fmpc).quadrotor.n,1);
+	Eigen::MatrixXf goal_n = Eigen::MatrixXf::Zero((*fmpc).ugv.n,1);
 	Eigen::MatrixXf ZkTRZk;
 	Eigen::MatrixXf ZfkT_Rf_Zfk;
 	Eigen::MatrixXf qTZk;
@@ -35,23 +35,23 @@ float objective_function_value(F_MPC_UNCUT* fmpc, Eigen::MatrixXf* X, Eigen::Mat
 
 	for (int i = 0; i < (*fmpc).mpc_params.T-1; i++)
 	{
-		tildeR[i] = Eigen::MatrixXf::Zero((*fmpc).quadrotor.n+(*fmpc).quadrotor.m,(*fmpc).quadrotor.n+(*fmpc).quadrotor.m);
-		tildeq[i] = Eigen::MatrixXf::Zero((*fmpc).quadrotor.n+(*fmpc).quadrotor.m,1);
-		Zk[i] =  Eigen::MatrixXf::Zero((*fmpc).quadrotor.n+(*fmpc).quadrotor.m,1);
+		tildeR[i] = Eigen::MatrixXf::Zero((*fmpc).ugv.n+(*fmpc).ugv.m,(*fmpc).ugv.n+(*fmpc).ugv.m);
+		tildeq[i] = Eigen::MatrixXf::Zero((*fmpc).ugv.n+(*fmpc).ugv.m,1);
+		Zk[i] =  Eigen::MatrixXf::Zero((*fmpc).ugv.n+(*fmpc).ugv.m,1);
 		
-		tildeR[i].block(0,0,(*fmpc).quadrotor.n,(*fmpc).quadrotor.n) = (*fmpc).mpc_params.eig_R_rk[i]; 
-		tildeR[i].block(0,(*fmpc).quadrotor.n,(*fmpc).quadrotor.n,(*fmpc).quadrotor.m) = (*fmpc).mpc_params.eig_R_r_lambda_k[i]; 
-		tildeR[i].block((*fmpc).quadrotor.n,0,(*fmpc).quadrotor.m,(*fmpc).quadrotor.n) = (*fmpc).mpc_params.eig_R_r_lambda_k[i].transpose();
-		tildeR[i].block((*fmpc).quadrotor.n,(*fmpc).quadrotor.n,(*fmpc).quadrotor.m,(*fmpc).quadrotor.m) = (*fmpc).mpc_params.eig_R_lambda; 
+		tildeR[i].block(0,0,(*fmpc).ugv.n,(*fmpc).ugv.n) = (*fmpc).mpc_params.eig_R_rk[i]; 
+		tildeR[i].block(0,(*fmpc).ugv.n,(*fmpc).ugv.n,(*fmpc).ugv.m) = (*fmpc).mpc_params.eig_R_r_lambda_k[i]; 
+		tildeR[i].block((*fmpc).ugv.n,0,(*fmpc).ugv.m,(*fmpc).ugv.n) = (*fmpc).mpc_params.eig_R_r_lambda_k[i].transpose();
+		tildeR[i].block((*fmpc).ugv.n,(*fmpc).ugv.n,(*fmpc).ugv.m,(*fmpc).ugv.m) = (*fmpc).mpc_params.eig_R_lambda; 
 
 		// cout << "q_rk: " << (*fmpc).mpc_params.eig_q_rk[i].transpose() << endl;
-		tildeq[i].block(0,0,(*fmpc).quadrotor.n-2,1) = (*fmpc).mpc_params.eig_q_rk[i];
+		tildeq[i].block(0,0,(*fmpc).ugv.n-2,1) = (*fmpc).mpc_params.eig_q_rk[i];
 		tildeq[i](12,0) = (*fmpc).mpc_params.q_psi;
 		tildeq[i](13,0) = 0;
-		tildeq[i].block((*fmpc).quadrotor.n,0,(*fmpc).quadrotor.m,1) = (*fmpc).mpc_params.eig_q_lambda_k[i];
+		tildeq[i].block((*fmpc).ugv.n,0,(*fmpc).ugv.m,1) = (*fmpc).mpc_params.eig_q_lambda_k[i];
 
-		Zk[i].block(0,0,(*fmpc).quadrotor.n,1) = Xs.col(i) - goal_n;
-		Zk[i].block((*fmpc).quadrotor.n,0,(*fmpc).quadrotor.m,1) = Us.col(i);
+		Zk[i].block(0,0,(*fmpc).ugv.n,1) = Xs.col(i) - goal_n;
+		Zk[i].block((*fmpc).ugv.n,0,(*fmpc).ugv.m,1) = Us.col(i);
 
 		for (int ii = 0; ii < (*fmpc).mpc_params.h[segment_number].rows(); ii++)
 		{
@@ -98,7 +98,7 @@ float objective_function_value(F_MPC_UNCUT* fmpc, Eigen::MatrixXf* X, Eigen::Mat
 // 	Eigen::MatrixXf* tildeq = new Eigen::MatrixXf[(*fmpc).mpc_params.T];
 // 	Eigen::MatrixXf* Zk = new Eigen::MatrixXf[(*fmpc).mpc_params.T];
 // 	Eigen::MatrixXf* gradObj = new Eigen::MatrixXf[(*fmpc).mpc_params.T];
-// 	Eigen::MatrixXf goal_n = Eigen::MatrixXf::Zero((*fmpc).quadrotor.n,1);
+// 	Eigen::MatrixXf goal_n = Eigen::MatrixXf::Zero((*fmpc).ugv.n,1);
 
 // 	goal_n(0,0) = (*fmpc).goal(0,0);
 // 	goal_n(1,0) = (*fmpc).goal(1,0);
@@ -107,23 +107,23 @@ float objective_function_value(F_MPC_UNCUT* fmpc, Eigen::MatrixXf* X, Eigen::Mat
 
 // 	for (int i = 0; i < (*fmpc).mpc_params.T-1; i++)
 // 	{
-// 		tildeR[i] = Eigen::MatrixXf::Zero((*fmpc).quadrotor.n+(*fmpc).quadrotor.m,(*fmpc).quadrotor.n+(*fmpc).quadrotor.m);
-// 		tildeq[i] = Eigen::MatrixXf::Zero((*fmpc).quadrotor.n+(*fmpc).quadrotor.m,1);
-// 		Zk[i] =  Eigen::MatrixXf::Zero((*fmpc).quadrotor.n+(*fmpc).quadrotor.m,1);
+// 		tildeR[i] = Eigen::MatrixXf::Zero((*fmpc).ugv.n+(*fmpc).ugv.m,(*fmpc).ugv.n+(*fmpc).ugv.m);
+// 		tildeq[i] = Eigen::MatrixXf::Zero((*fmpc).ugv.n+(*fmpc).ugv.m,1);
+// 		Zk[i] =  Eigen::MatrixXf::Zero((*fmpc).ugv.n+(*fmpc).ugv.m,1);
 		
-// 		tildeR[i].block(0,0,(*fmpc).quadrotor.n,(*fmpc).quadrotor.n) = (*fmpc).mpc_params.eig_R_rk[i]; 
-// 		tildeR[i].block(0,(*fmpc).quadrotor.n,(*fmpc).quadrotor.n,(*fmpc).quadrotor.m) = (*fmpc).mpc_params.eig_R_r_lambda_k[i]; 
-// 		tildeR[i].block((*fmpc).quadrotor.n,0,(*fmpc).quadrotor.m,(*fmpc).quadrotor.n) = (*fmpc).mpc_params.eig_R_r_lambda_k[i].transpose();
-// 		tildeR[i].block((*fmpc).quadrotor.n,(*fmpc).quadrotor.n,(*fmpc).quadrotor.m,(*fmpc).quadrotor.m) = (*fmpc).mpc_params.eig_R_lambda; 
+// 		tildeR[i].block(0,0,(*fmpc).ugv.n,(*fmpc).ugv.n) = (*fmpc).mpc_params.eig_R_rk[i]; 
+// 		tildeR[i].block(0,(*fmpc).ugv.n,(*fmpc).ugv.n,(*fmpc).ugv.m) = (*fmpc).mpc_params.eig_R_r_lambda_k[i]; 
+// 		tildeR[i].block((*fmpc).ugv.n,0,(*fmpc).ugv.m,(*fmpc).ugv.n) = (*fmpc).mpc_params.eig_R_r_lambda_k[i].transpose();
+// 		tildeR[i].block((*fmpc).ugv.n,(*fmpc).ugv.n,(*fmpc).ugv.m,(*fmpc).ugv.m) = (*fmpc).mpc_params.eig_R_lambda; 
 
 // 		// cout << "q_rk: " << (*fmpc).mpc_params.eig_q_rk[i].transpose() << endl;
-// 		tildeq[i].block(0,0,(*fmpc).quadrotor.n-2,1) = (*fmpc).mpc_params.eig_q_rk[i];
+// 		tildeq[i].block(0,0,(*fmpc).ugv.n-2,1) = (*fmpc).mpc_params.eig_q_rk[i];
 // 		tildeq[i](12,0) = (*fmpc).mpc_params.q_psi;
 // 		tildeq[i](13,0) = 0;
-// 		tildeq[i].block((*fmpc).quadrotor.n,0,(*fmpc).quadrotor.m,1) = (*fmpc).mpc_params.eig_q_lambda_k[i];
+// 		tildeq[i].block((*fmpc).ugv.n,0,(*fmpc).ugv.m,1) = (*fmpc).mpc_params.eig_q_lambda_k[i];
 
-// 		Zk[i].block(0,0,(*fmpc).quadrotor.n,1) = (*X).col(i) - goal_n;
-// 		Zk[i].block((*fmpc).quadrotor.n,0,(*fmpc).quadrotor.m,1) = (*U).col(i);
+// 		Zk[i].block(0,0,(*fmpc).ugv.n,1) = (*X).col(i) - goal_n;
+// 		Zk[i].block((*fmpc).ugv.n,0,(*fmpc).ugv.m,1) = (*U).col(i);
 
 // 		for (int j = 0; j < (*fmpc).bomt.dx.rows(); j++)
 // 		{

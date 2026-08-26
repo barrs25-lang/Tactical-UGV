@@ -173,9 +173,9 @@ struct MPC_Params {
 
 // struct Goal_Params {
 // 	Goal_Params(){}
-// 	//This constructor is specific to the quadrotor and uses \sout{10} 12 states
-// 	Goal_Params(struct System system, bool isQuadrotor){
-// 		if(isQuadrotor){
+// 	//This constructor is specific to the ugv and uses \sout{10} 12 states
+// 	Goal_Params(struct System system, bool isugv){
+// 		if(isugv){
 // 			float CGR[196] = { 0 };
 // 			//eig_CGR = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>> (CGR, 14, 14);
 // 			//eig_AGR = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>(new float[392], 28, 14);

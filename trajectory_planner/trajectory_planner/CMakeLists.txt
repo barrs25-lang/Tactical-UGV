@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.2)
+cmake_minimum_required (VERSION 3.5)
 
 project(fmpc_uncut)
 
@@ -17,7 +17,16 @@ add_executable(fmpc_uncut
 	       	src/main/main.cpp 
 		src/logging/logging.cpp
 		src/f_mpc_uncut/f_mpc_uncut.cpp
-		src/line_search/line_search.cpp)
+		src/line_search/line_search.cpp
+		src/MPC_node.cpp)
 
-target_link_libraries(fmpc_uncut PRIVATE ${CMAKE_DL_LIBS} X11 pthread Xrandr Xi dl)
+
+		
+target_link_libraries(fmpc_uncut PRIVATE
+  pthread
+  ${CMAKE_DL_LIBS}
+)
+
+# Link against X11, Xrandr, and Xi for display purposes
+# target_link_libraries(fmpc_uncut PRIVATE ${CMAKE_DL_LIBS} X11 pthread Xrandr Xi)
 

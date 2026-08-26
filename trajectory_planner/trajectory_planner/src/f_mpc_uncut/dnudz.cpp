@@ -8,11 +8,11 @@ using namespace std;
 /*
 * dnudz(...)
 *	Input
-*		quadrotor, mpc_rules, bag_of_many_things: structures containing system and problem parameters; see <structures.h> for details
+*		ugv, mpc_rules, bag_of_many_things: structures containing system and problem parameters; see <structures.h> for details
 *	Output
 *		rd_tilde, rp
 */
-void dnudz(struct System* quadrotor, struct MPC_Params* mpc_rules, struct Matrix_Set* BoMT)
+void dnudz(struct System* ugv, struct MPC_Params* mpc_rules, struct Matrix_Set* BoMT)
 {
 
 	// Calculate kappa*PTdT and mu_13*PtTdhPt
@@ -20,22 +20,22 @@ void dnudz(struct System* quadrotor, struct MPC_Params* mpc_rules, struct Matrix
 	{
 
 		// Calculate diag(d_x)*F_x
-		(*BoMT).set_PTdP_x[i].noalias() = (*BoMT).dx.col(i).asDiagonal() * (*quadrotor).eig_Fx_hard;
+		(*BoMT).set_PTdP_x[i].noalias() = (*BoMT).dx.col(i).asDiagonal() * (*ugv).eig_Fx_hard;
 
 		// Calculate k * (diag(d_x)*F_x)^T * (diag(d_x)*F_x)
 		(*BoMT).set_PTdP_x[i] = (*mpc_rules).mu_12 * (*BoMT).set_PTdP_x[i].transpose() * (*BoMT).set_PTdP_x[i];
 
 		// Calculate diag(d_u)*F_u
-		(*BoMT).set_PTdP_u[i].noalias() = (*BoMT).du.col(i).asDiagonal() * (*quadrotor).eig_Fu_hard;
+		(*BoMT).set_PTdP_u[i].noalias() = (*BoMT).du.col(i).asDiagonal() * (*ugv).eig_Fu_hard;
 
 		// Calculate k * (diag(d_u)*F_u)^T * (diag(d_u)*F_u)
 		(*BoMT).set_PTdP_u[i] = (*mpc_rules).mu_12 * (*BoMT).set_PTdP_u[i].transpose() * (*BoMT).set_PTdP_u[i];
 
 		// Calculate mu_13 * F~_x^T * diag(d_hat_x) * F~_x
-		(*BoMT).set_PtTdhPt_x[i].noalias() = (*quadrotor).eig_Fx_soft.transpose() *  (*BoMT).rho_i_x_vec.asDiagonal() * (*BoMT).rho_i_x_vec.asDiagonal() * (*BoMT).d_hat_x.col(i).asDiagonal() * (*quadrotor).eig_Fx_soft;
+		(*BoMT).set_PtTdhPt_x[i].noalias() = (*ugv).eig_Fx_soft.transpose() *  (*BoMT).rho_i_x_vec.asDiagonal() * (*BoMT).rho_i_x_vec.asDiagonal() * (*BoMT).d_hat_x.col(i).asDiagonal() * (*ugv).eig_Fx_soft;
 
 		// Calculate mu_13 * F~_u^T * diag(d_hat_u) * F~_u
-		(*BoMT).set_PtTdhPt_u[i].noalias() = (*mpc_rules).mu_13 * (*quadrotor).eig_Fu_soft.transpose() * (*BoMT).d_hat_u.col(i).asDiagonal() * (*BoMT).d_hat_u.col(i).asDiagonal() * (*quadrotor).eig_Fu_soft;
+		(*BoMT).set_PtTdhPt_u[i].noalias() = (*mpc_rules).mu_13 * (*ugv).eig_Fu_soft.transpose() * (*BoMT).d_hat_u.col(i).asDiagonal() * (*BoMT).d_hat_u.col(i).asDiagonal() * (*ugv).eig_Fu_soft;
 
 	} // for ( unsigned short int i = 0; i < (*mpc_rules).T; ++i )
 
@@ -50,7 +50,7 @@ void dnudz(struct System* quadrotor, struct MPC_Params* mpc_rules, struct Matrix
 		(*BoMT).set_QInv[i].noalias() = (*BoMT).set_Phi_x[i].inverse();
 
 		// Calculate A * (Phi_Q)^-1
-		(*BoMT).set_AQInv[i].noalias() = (*quadrotor).eig_A * (*BoMT).set_QInv[i];
+		(*BoMT).set_AQInv[i].noalias() = (*ugv).eig_A * (*BoMT).set_QInv[i];
 
 		// Calculate Phi_R
 		(*BoMT).set_Phi_u[i].noalias() = 2*(*mpc_rules).eig_R_lambda + (*BoMT).set_PTdP_u[i] +  (*BoMT).set_PtTdhPt_u[i];
@@ -59,18 +59,18 @@ void dnudz(struct System* quadrotor, struct MPC_Params* mpc_rules, struct Matrix
 		(*BoMT).set_RInv[i].noalias() = (*BoMT).set_Phi_u[i].inverse();
 
 		// Calculate B * (Phi_R)^-1
-		(*BoMT).set_BRInv[i].noalias() = (*quadrotor).eig_B * (*BoMT).set_RInv[i];
+		(*BoMT).set_BRInv[i].noalias() = (*ugv).eig_B * (*BoMT).set_RInv[i];
 
 	} // for ( unsigned short int i = 0; i < (*mpc_rules).T; ++i )
 
 	//Y = CPhiInv * C^T
-	(*BoMT).set_Y_onDiag[0].noalias() = (*BoMT).set_BRInv[0] * (*quadrotor).eig_B.transpose() + (*BoMT).set_QInv[0]; // why is the last term here?
+	(*BoMT).set_Y_onDiag[0].noalias() = (*BoMT).set_BRInv[0] * (*ugv).eig_B.transpose() + (*BoMT).set_QInv[0]; // why is the last term here?
 	
 	// Iterate over the number of time steps
 	for ( unsigned short int i = 1; i < (*mpc_rules).T; ++i )
 	{
 	
-		(*BoMT).set_Y_onDiag[i].noalias() = (*BoMT).set_AQInv[i-1] * (*quadrotor).eig_A.transpose() + (*BoMT).set_BRInv[i-1] * (*quadrotor).eig_B.transpose() + (*BoMT).set_QInv[i];
+		(*BoMT).set_Y_onDiag[i].noalias() = (*BoMT).set_AQInv[i-1] * (*ugv).eig_A.transpose() + (*BoMT).set_BRInv[i-1] * (*ugv).eig_B.transpose() + (*BoMT).set_QInv[i];
 	
 	} // for ( unsigned short int i = 1; i < (*mpc_rules).T; ++i )
 
@@ -134,10 +134,10 @@ void dnudz(struct System* quadrotor, struct MPC_Params* mpc_rules, struct Matrix
 
 	// nu = nu + s*dnu
 	(*BoMT).dnu = (*BoMT).beta; 
-	(*BoMT).dz_u.noalias() = (*BoMT).rd_tilde_u + (*quadrotor).eig_B.transpose() * (*BoMT).dnu;
+	(*BoMT).dz_u.noalias() = (*BoMT).rd_tilde_u + (*ugv).eig_B.transpose() * (*BoMT).dnu;
 	(*BoMT).dz_x.noalias() = (*BoMT).rd_tilde_x - (*BoMT).dnu;
 
-	// (*BoMT).dz_u.noalias() = (*BoMT).rd_tilde_u + (*quadrotor).eig_B.transpose() * (*BoMT).nu;
+	// (*BoMT).dz_u.noalias() = (*BoMT).rd_tilde_u + (*ugv).eig_B.transpose() * (*BoMT).nu;
 	// (*BoMT).dz_x.noalias() = (*BoMT).rd_tilde_x - (*BoMT).nu;
 
 	// Iterate over the number of time steps
@@ -145,7 +145,7 @@ void dnudz(struct System* quadrotor, struct MPC_Params* mpc_rules, struct Matrix
 	{
 		
 		(*BoMT).dz_u.col(i) = (*BoMT).set_RInv[i] * (*BoMT).dz_u.col(i);
-		(*BoMT).dz_x.col(i) += (*quadrotor).eig_A.transpose() * (*BoMT).dnu.col(i+1);
+		(*BoMT).dz_x.col(i) += (*ugv).eig_A.transpose() * (*BoMT).dnu.col(i+1);
 		(*BoMT).dz_x.col(i) = (*BoMT).set_QInv[i] * (*BoMT).dz_x.col(i);
 
 	} // for ( unsigned short int i = 0; i < (*mpc_rules).T-1; ++i )
@@ -155,4 +155,4 @@ void dnudz(struct System* quadrotor, struct MPC_Params* mpc_rules, struct Matrix
 
 	return;
 
-} // void dnudz(struct System* quadrotor, struct MPC_Params* mpc_rules, struct Matrix_Set* BoMT)
+} // void dnudz(struct System* ugv, struct MPC_Params* mpc_rules, struct Matrix_Set* BoMT)

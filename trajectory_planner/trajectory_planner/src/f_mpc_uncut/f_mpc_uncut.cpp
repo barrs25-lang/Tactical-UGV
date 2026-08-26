@@ -9,14 +9,20 @@
 // based trajectory planner.
 // End File Decscription ################################################################################
 
+#define DISABLE_COMMUNICATION
 // List include files
 #include <f_mpc_uncut.h>
-#include <my_client.h>
 #include <line_search.h>
 #include "dnudz.cpp"
 #include "gfgphp.cpp"
 #include "rdrp.cpp"
 #include "resdresp.cpp"
+
+#ifndef DISABLE_COMMUNICATION
+#include <my_client.h>
+#endif
+
+#include <yaml-cpp/yaml.h>
 
 // Integers capturing thread status
 int trajectory_status = 0, communication_status = 0;
@@ -112,7 +118,7 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 	string param_filename;
 
 	// Set the parameter file's name
-	param_filename = "Parameter_Files/System_params.txt";
+	param_filename = "Parameter_Files/System_params_UGV.txt";
 
 	try
 	{
@@ -126,28 +132,28 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 		//read system physical dimensions
 		do{ss.clear(); getline(file, file_line); ss.str(file_line);}
 		while(file_line.at(0) == '/' && file_line.at(1) == '/');
-		ss >> quadrotor.width;
-		ss >> quadrotor.length;
-		ss >> quadrotor.height;
+		ss >> ugv.width;
+		ss >> ugv.length;
+		ss >> ugv.height;
 
-		// read quadrotor mass
+		// read ugv mass
 		do{ss.clear(); getline(file, file_line); ss.str(file_line);}
 		while(file_line.at(0) == '/' && file_line.at(1) == '/');
-		ss >> quadrotor.mass;
+		ss >> ugv.mass;
 
-		// read quadrotor length of moment arm
+		// read ugv length of moment arm
 		do{ss.clear(); getline(file, file_line); ss.str(file_line);}
 		while(file_line.at(0) == '/' && file_line.at(1) == '/');
-		ss >> quadrotor.moment_arm_l;
+		ss >> ugv.moment_arm_l;
 
-		// read quadrotor coefficient of drag (props)
+		// read ugv coefficient of drag (props)
 		do{ss.clear(); getline(file, file_line); ss.str(file_line);}
 		while(file_line.at(0) == '/' && file_line.at(1) == '/');
-		ss >> quadrotor.cT;
+		ss >> ugv.cT;
 
 		// Define the size of the inertia matrix and its inverse
-		quadrotor.inertia_matrix = Eigen::MatrixXf::Zero(3,3);
-		quadrotor.inertia_matrix_inv = Eigen::MatrixXf::Zero(3,3);
+		ugv.inertia_matrix = Eigen::MatrixXf::Zero(3,3);
+		ugv.inertia_matrix_inv = Eigen::MatrixXf::Zero(3,3);
 
 		// read the inertia matrix
 		// Iterate over the number of rows
@@ -169,22 +175,22 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 			for(unsigned short int j = 0; j < 3; ++j)
 			{
 				
-				ss >> quadrotor.inertia_matrix(i,j);
+				ss >> ugv.inertia_matrix(i,j);
 
 			} // for(int j = 0; j < 3; ++j)
 
 		} // for(int i = 0; i < 3; ++i)
 
 		// Compute the inverse of the inertia matrix
-		quadrotor.inertia_matrix_inv = quadrotor.inertia_matrix.inverse();
+		ugv.inertia_matrix_inv = ugv.inertia_matrix.inverse();
 
 		// read the half-field-of-view angle (degrees)
 		do{ss.clear(); getline(file, file_line); ss.str(file_line);}
 		while(file_line.at(0) == '/' && file_line.at(1) == '/');
-		ss >> quadrotor.half_camera_FOV;
+		ss >> ugv.half_camera_FOV;
 
 		// convert the half-field-of-view angle (radians)
-		quadrotor.half_camera_FOV = (quadrotor.half_camera_FOV*M_PI)/180;
+		ugv.half_camera_FOV = (ugv.half_camera_FOV*M_PI)/180;
 
 		//read the number of states
 		do{ss.clear(); getline(file, file_line); ss.str(file_line);}
@@ -478,19 +484,19 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 
 	} // catch (...)
 
-	// Save parameters to System (quadrotor) object
-	quadrotor.n = n_in;
-	quadrotor.m = m_in;
-	quadrotor.num_hard_u = num_fu_hard_in;
-	quadrotor.num_soft_u = num_fu_soft_in;
-	quadrotor.eig_z_hard_bounds(0) = z_hard_ceiling_in;
-	quadrotor.eig_z_hard_bounds(1) = -z_hard_floor_in;
-	quadrotor.eig_z_soft_bounds(0) = z_soft_ceiling_in;
-	quadrotor.eig_z_soft_bounds(1) = -z_soft_floor_in;
-	quadrotor.phi_max = phi_max_in;
-	quadrotor.theta_max = theta_max_in;
-	quadrotor.T_min = T_min_in;
-	quadrotor.T_max = T_max_in;
+	// Save parameters to System (ugv) object
+	ugv.n = n_in;
+	ugv.m = m_in;
+	ugv.num_hard_u = num_fu_hard_in;
+	ugv.num_soft_u = num_fu_soft_in;
+	ugv.eig_z_hard_bounds(0) = z_hard_ceiling_in;
+	ugv.eig_z_hard_bounds(1) = -z_hard_floor_in;
+	ugv.eig_z_soft_bounds(0) = z_soft_ceiling_in;
+	ugv.eig_z_soft_bounds(1) = -z_soft_floor_in;
+	ugv.phi_max = phi_max_in;
+	ugv.theta_max = theta_max_in;
+	ugv.T_min = T_min_in;
+	ugv.T_max = T_max_in;
 
 	// Define float arrays for storing input data
 	float *tilde_R_r_in = new float[n_in*n_in], *R_r_f_in = new float[n_in*n_in], *R_lambda_in = new float[m_in*m_in], *tilde_R_r_lambda_in = new float[n_in*m_in]; 
@@ -792,8 +798,8 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 
 
 	// // Use Cayley-Hamilton Theorem to compute the matrix exponential
-	quadrotor.eig_A = Eigen::MatrixXf::Zero(n_in,n_in);
-	// quadrotor.eig_A_complex = Eigen::MatrixXcf::Zero(n_in,n_in);
+	ugv.eig_A = Eigen::MatrixXf::Zero(n_in,n_in);
+	// ugv.eig_A_complex = Eigen::MatrixXcf::Zero(n_in,n_in);
 	// Eigen::MatrixXf eig_A_temp_power;
 	// // Step 1a: Find eigenvalues of the matrix
 	// Eigen::VectorXcf eig_A_eigenvalues = eig_A_temp.eigenvalues();
@@ -873,22 +879,22 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 	// 	{
 	// 		eig_A_temp_power*=eig_A_temp;
 	// 	}
-	// 	// quadrotor.eig_A += (alpha_coefficients(i)*eig_A_temp_power);
-	// 	quadrotor.eig_A_complex += (alpha_coefficients(i)*eig_A_temp_power);
+	// 	// ugv.eig_A += (alpha_coefficients(i)*eig_A_temp_power);
+	// 	ugv.eig_A_complex += (alpha_coefficients(i)*eig_A_temp_power);
 	// }
 
-	// quadrotor.eig_A = quadrotor.eig_A_complex.real();
+	// ugv.eig_A = ugv.eig_A_complex.real();
 
-	// cout << "eig_A_complex: " << endl << quadrotor.eig_A_complex << endl;
-	// Eigen::VectorXcf discrete_eig_A_eigenvalues = quadrotor.eig_A.eigenvalues();
+	// cout << "eig_A_complex: " << endl << ugv.eig_A_complex << endl;
+	// Eigen::VectorXcf discrete_eig_A_eigenvalues = ugv.eig_A.eigenvalues();
 
 	// cout << "discrete_eig_A_eigenvalues: " << endl << discrete_eig_A_eigenvalues.transpose() << endl;
 
-	quadrotor.eig_B = Eigen::MatrixXf::Zero(n_in,m_in);
-	// quadrotor.eig_B = eig_A_temp.inverse()*(quadrotor.eig_A - Eigen::MatrixXf::Identity(n_in,n_in))*eig_B_temp / mpc_params.delta_t;
+	ugv.eig_B = Eigen::MatrixXf::Zero(n_in,m_in);
+	// ugv.eig_B = eig_A_temp.inverse()*(ugv.eig_A - Eigen::MatrixXf::Identity(n_in,n_in))*eig_B_temp / mpc_params.delta_t;
 
-	quadrotor.eig_A = eig_A_temp;
-	quadrotor.eig_B = eig_B_temp;
+	ugv.eig_A = eig_A_temp;
+	ugv.eig_B = eig_B_temp;
 
 	// ****************** //
 	// Set mpc parameters //
@@ -926,8 +932,8 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 	mpc_params.centering_soft_constraints = centering_soft_constraints_in;
 	mpc_params.goal_tolerance = goal_tolerance_in;
 
-	quadrotor.noise_source = noise_source_in;
-	quadrotor.noise_w = Eigen::MatrixXf::Ones(n_in, T_in);
+	ugv.noise_source = noise_source_in;
+	ugv.noise_w = Eigen::MatrixXf::Ones(n_in, T_in);
 
 	// Iterate over the number of states
 	for (unsigned short int i = 0; i < n_in; i++)
@@ -938,7 +944,7 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 		{
 			
 			// Compute noise density
-			quadrotor.noise_w(i,j) *= noise_w_in;	
+			ugv.noise_w(i,j) *= noise_w_in;	
 
 		} // for (int j = 0; j < T_in; j++)
 
@@ -948,7 +954,7 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 	Eigen::MatrixXf dummy_Fpsi;
 	dummy_Fpsi = Eigen::MatrixXf::Zero(2,14);
 
-	// Set the constraints to match Equation 33a and 33b of Marshall et. al. 2022
+	// Set the constraints to match Equation 34a and 34b of Marshall et. al. 2022
 	dummy_Fpsi(0,12) = 1;
 	dummy_Fpsi(1,12) = -1;
 
@@ -965,52 +971,52 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 	// ******************************************************************************** //
 
 	// Set the size of eig_Fx_hard_boundary_conditions 
-	quadrotor.eig_Fx_hard_boundary_conditions = Eigen::MatrixXf::Zero(2*n_in,n_in);
+	ugv.eig_Fx_hard_boundary_conditions = Eigen::MatrixXf::Zero(2*n_in,n_in);
 
 	// Fill the matrix with 1s on diagonal 
-	quadrotor.eig_Fx_hard_boundary_conditions.block(0,0,n_in,n_in) = Eigen::MatrixXf::Identity(n_in,n_in);  
+	ugv.eig_Fx_hard_boundary_conditions.block(0,0,n_in,n_in) = Eigen::MatrixXf::Identity(n_in,n_in);  
 
 	// Fill the matrix with -1s on diagonal 
-	quadrotor.eig_Fx_hard_boundary_conditions.block(n_in,0,n_in,n_in) = -1*Eigen::MatrixXf::Identity(n_in,n_in);  
+	ugv.eig_Fx_hard_boundary_conditions.block(n_in,0,n_in,n_in) = -1*Eigen::MatrixXf::Identity(n_in,n_in);  
 	
 	// Set the size of eig_x_hard_boundary_conditions 
-	quadrotor.eig_x_hard_boundary_conditions = Eigen::MatrixXf::Zero(2*n_in,mpc_params.T);
+	ugv.eig_x_hard_boundary_conditions = Eigen::MatrixXf::Zero(2*n_in,mpc_params.T);
 
 	// Set the size of eig_Fx_soft_boundary_conditions 
-	quadrotor.eig_Fx_soft_boundary_conditions = Eigen::MatrixXf::Zero(2*n_in,n_in);
+	ugv.eig_Fx_soft_boundary_conditions = Eigen::MatrixXf::Zero(2*n_in,n_in);
 
 	// Fill the matrix with 1s on diagonal 
-	quadrotor.eig_Fx_soft_boundary_conditions.block(0,0,n_in,n_in) = Eigen::MatrixXf::Identity(n_in,n_in);  
+	ugv.eig_Fx_soft_boundary_conditions.block(0,0,n_in,n_in) = Eigen::MatrixXf::Identity(n_in,n_in);  
 
 	// Fill the matrix with -1s on diagonal 
-	quadrotor.eig_Fx_soft_boundary_conditions.block(n_in,0,n_in,n_in) = -1*Eigen::MatrixXf::Identity(n_in,n_in);  
+	ugv.eig_Fx_soft_boundary_conditions.block(n_in,0,n_in,n_in) = -1*Eigen::MatrixXf::Identity(n_in,n_in);  
 
 	// Set the size of eig_x_hard_boundary_conditions 
-	quadrotor.eig_x_soft_boundary_conditions = Eigen::MatrixXf::Zero(2*n_in,mpc_params.T);
+	ugv.eig_x_soft_boundary_conditions = Eigen::MatrixXf::Zero(2*n_in,mpc_params.T);
 
 	// Set the hard constraints on heading
-	quadrotor.eig_Fpsi_hard = dummy_Fpsi;
+	ugv.eig_Fpsi_hard = dummy_Fpsi;
 
 	// Set the hard constraints on altitude
-	quadrotor.eig_Fz_hard_ceiling = dummy_Fz_ceiling;
+	ugv.eig_Fz_hard_ceiling = dummy_Fz_ceiling;
 
 	// Set the hard constraints on the control input
-	quadrotor.eig_Fu_hard = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (Fu_hard_in, quadrotor.num_hard_u, quadrotor.m);
+	ugv.eig_Fu_hard = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (Fu_hard_in, ugv.num_hard_u, ugv.m);
 
 	// Set the hard constraints RHS value
-	quadrotor.eig_u_hard_bounds = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 1>> (fu_hard_in, quadrotor.num_hard_u);
+	ugv.eig_u_hard_bounds = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 1>> (fu_hard_in, ugv.num_hard_u);
 
 	// Set the hard constraints on heading
-	quadrotor.eig_Fpsi_soft = quadrotor.eig_Fpsi_hard;
+	ugv.eig_Fpsi_soft = ugv.eig_Fpsi_hard;
 	
 	// Set the hard constraints on altitude
-	quadrotor.eig_Fz_soft_ceiling = quadrotor.eig_Fz_hard_ceiling;
+	ugv.eig_Fz_soft_ceiling = ugv.eig_Fz_hard_ceiling;
 	
 	// Set the hard constraints on the control input
-	quadrotor.eig_Fu_soft = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (Fu_soft_in, quadrotor.num_soft_u, quadrotor.m);
+	ugv.eig_Fu_soft = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (Fu_soft_in, ugv.num_soft_u, ugv.m);
 	
 	// Set the soft constraints RHS value
-	quadrotor.eig_u_soft_bounds = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 1>> (fu_soft_in, quadrotor.num_soft_u);
+	ugv.eig_u_soft_bounds = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 1>> (fu_soft_in, ugv.num_soft_u);
 	
 	// Iterate over the size of the state^2
 	for (unsigned short int i = 0; i < n_in*n_in; i++)
@@ -1022,29 +1028,29 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 	} // for (int i = 0; i < n_in*n_in; i++)
 
 	// Set the R_r_tilde matrix, quadratic weighting on position error (set by user)
-	mpc_params.eig_R_r_tilde = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (tilde_R_r_in, quadrotor.n, quadrotor.n);
+	mpc_params.eig_R_r_tilde = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (tilde_R_r_in, ugv.n, ugv.n);
 
 	// Set the R_r_f matrix, quadratic weighting on final position error
-	mpc_params.eig_R_rf = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(R_r_f_in, quadrotor.n, quadrotor.n);
+	mpc_params.eig_R_rf = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(R_r_f_in, ugv.n, ugv.n);
 
 	// Set the R_r_lambda matrix, quadratic weighting on coupling 
-	mpc_params.eig_R_r_lambda_tilde =  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (tilde_R_r_lambda_in, quadrotor.n, quadrotor.m);
+	mpc_params.eig_R_r_lambda_tilde =  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (tilde_R_r_lambda_in, ugv.n, ugv.m);
 	
 	// Set the q_r_\tilde vector, linear weighting on position error
-	mpc_params.eig_q_r_tilde = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (tilde_q_r_in, quadrotor.n-2, 1);
+	mpc_params.eig_q_r_tilde = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (tilde_q_r_in, ugv.n-2, 1);
 
 	// Set the q_psi parameter, linear weighting on heading error
 	mpc_params.q_psi = (*q_psi_in);
 
 	// Set the R_lambda_tilde matrix, quadratic weighting on control input (set by user)
-	mpc_params.eig_R_lambda_tilde = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (R_lambda_in, quadrotor.m, quadrotor.m);
+	mpc_params.eig_R_lambda_tilde = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (R_lambda_in, ugv.m, ugv.m);
 
 	// Set the R_lambda matrix, quadratic weighting on control input (varies with time)
-	mpc_params.eig_R_lambda = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (R_lambda_in, quadrotor.m, quadrotor.m);
-	mpc_params.eig_R_lambda_init = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (R_lambda_in, quadrotor.m, quadrotor.m);
+	mpc_params.eig_R_lambda = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (R_lambda_in, ugv.m, ugv.m);
+	mpc_params.eig_R_lambda_init = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (R_lambda_in, ugv.m, ugv.m);
 	
 	// Set the q_lambda vector, linear weighting on control input
-	mpc_params.eig_q_lambda_tilde = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (tilde_q_lambda_in, quadrotor.m, 1);
+	mpc_params.eig_q_lambda_tilde = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> (tilde_q_lambda_in, ugv.m, 1);
 
 	// Define matrix to store the RHS of the Schur complement (condition for positive-definiteness of block matrix tilde{eig_R})
 	Eigen::MatrixXf RHS_LMI = Eigen::MatrixXf::Zero(n_in,n_in);
@@ -1114,17 +1120,17 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 		throw;
 	}
 
-	// Set the size of \Gamma, stores the 
-	Gamma = Eigen::MatrixXf::Zero(3,3);
+	// // Set the size of \Gamma, stores the 
+	// Gamma = Eigen::MatrixXf::Zero(3,3);
 
-	// Set the size of \omega, stores the angular velocity of the body reference frame
-	omega = Eigen::MatrixXf::Zero(3,1);
+	// // Set the size of \omega, stores the angular velocity of the body reference frame
+	// omega = Eigen::MatrixXf::Zero(3,1);
 
-	// Set the size of dEuler, stores the time derivative of the Euler angles
-	dEuler = Eigen::MatrixXf::Zero(3,1);
+	// // Set the size of dEuler, stores the time derivative of the Euler angles
+	// dEuler = Eigen::MatrixXf::Zero(3,1);
 
-	// Set the size of the quadrotor's state vector (its 6dof state not the ofl state)
-	quadrotor.X0 = Eigen::VectorXf::Zero(n_in);
+	// Set the size of the ugv's state vector (its 6dof state not the ofl state)
+	ugv.X0 = Eigen::VectorXf::Zero(n_in);
 
 	// Set the size of the matrix storing the previous planned path
 	prev_plannedPath = Eigen::MatrixXf::Zero(69,3);
@@ -1132,158 +1138,166 @@ F_MPC_UNCUT::F_MPC_UNCUT()
 	// Set the size of the vector storing the coordinates of the closest obstacle
 	r_obs = Eigen::MatrixXf::Zero(3,1);
 
-	// Set the size of the state-transition matrix for the 
-	// higher order dynamics of u1
-	mpc_params.A_u1 = Eigen::MatrixXf::Zero(2,2);
+	// // Set the size of the state-transition matrix for the 
+	// // higher order dynamics of u1
+	// mpc_params.A_u1 = Eigen::MatrixXf::Zero(2,2);
 
-	// Set the elements (this is the discrete-time matrix)
-	mpc_params.A_u1(0,0) = 1.0;
-	mpc_params.A_u1(0,1) = 1.0;
-	mpc_params.A_u1(1,1) = 1.0;
+	// // Set the elements (this is the discrete-time matrix)
+	// mpc_params.A_u1(0,0) = 1.0;
+	// mpc_params.A_u1(0,1) = 1.0;
+	// mpc_params.A_u1(1,1) = 1.0;
 
-	// Set the size of the control effectiveness matrix for the
-	// higher dynamics of u1
-	mpc_params.B_u1 = Eigen::MatrixXf::Zero(2,1);
+	// // Set the size of the control effectiveness matrix for the
+	// // higher dynamics of u1
+	// mpc_params.B_u1 = Eigen::MatrixXf::Zero(2,1);
 
-	// Set the elements (this is the discrete-time matrix)
-	mpc_params.B_u1(0,0) = 0.5*mpc_params.delta_t*mpc_params.delta_t;
-	mpc_params.B_u1(1,0) = mpc_params.delta_t;
+	// // Set the elements (this is the discrete-time matrix)
+	// mpc_params.B_u1(0,0) = 0.5*mpc_params.delta_t*mpc_params.delta_t;
+	// mpc_params.B_u1(1,0) = mpc_params.delta_t;
 
-	// Set the size of \delta_k, the vector storing u1 and u1dot
-	quadrotor.delta_k = Eigen::MatrixXf::Zero(2,mpc_params.T);
+	// // Set the size of \delta_k, the vector storing u1 and u1dot
+	// ugv.delta_k = Eigen::MatrixXf::Zero(2,mpc_params.T);
 
-	// Set the size of u1_k storing the value of u1 over the time horizon T
-	quadrotor.u1_k = Eigen::MatrixXf::Zero(mpc_params.T,1);
+	// // Set the size of u1_k storing the value of u1 over the time horizon T
+	// ugv.u1_k = Eigen::MatrixXf::Zero(mpc_params.T,1);
 
-	// Set the size of u1_dot_k storing the value of u1_dot over the time horizon T
-	quadrotor.u1_dot_k = Eigen::MatrixXf::Zero(mpc_params.T,1);
+	// // Set the size of u1_dot_k storing the value of u1_dot over the time horizon T
+	// ugv.u1_dot_k = Eigen::MatrixXf::Zero(mpc_params.T,1);
 
-	// Set the size of T_k storing the value of the thrust over the time horizon T
-	quadrotor.T_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
-	quadrotor.T_k_min = Eigen::MatrixXf::Zero(4,mpc_params.T);
-	quadrotor.T_k_max = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// // Set the size of T_k storing the value of the thrust over the time horizon T
+	// ugv.T_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// ugv.T_k_min = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// ugv.T_k_max = Eigen::MatrixXf::Zero(4,mpc_params.T);
 
 	// Iterate over the number of time steps
-	for (unsigned short int i = 0; i < mpc_params.T; i++)
-	{
+	// for (unsigned short int i = 0; i < mpc_params.T; i++)
+	// {
 		
-		quadrotor.u1_k(i,0) = -quadrotor.mass*9.81;
+	// 	ugv.u1_k(i,0) = -ugv.mass*9.81;
 		
-		// Iterate over the number of props
-		for (unsigned short int j = 0; j < 4; j++)
-		{
+	// 	// Iterate over the number of props
+	// 	for (unsigned short int j = 0; j < 4; j++)
+	// 	{
 			
-			quadrotor.T_k(j,i) = quadrotor.mass*9.81*0.25;
+	// 		ugv.T_k(j,i) = ugv.mass*9.81*0.25;
 
-		} // for (int j = 0; j < 4; j++)
+	// 	} // for (int j = 0; j < 4; j++)
 
-	} // for (int i = 0; i < mpc_params.T; i++)
+	// } // for (int i = 0; i < mpc_params.T; i++)
 
-	// Set the size of M, the mixer
-	quadrotor.M = Eigen::MatrixXf::Zero(4,4);
+	// // Set the size of M, the mixer
+	// ugv.M = Eigen::MatrixXf::Zero(4,4);
 
-	// Set mixer coefficients
-	quadrotor.M(0,0) = 0.25;
-	quadrotor.M(1,0) = 0.25;
-	quadrotor.M(2,0) = 0.25;
-	quadrotor.M(3,0) = 0.25;
+	// // Set mixer coefficients
+	// ugv.M(0,0) = 0.25;
+	// ugv.M(1,0) = 0.25;
+	// ugv.M(2,0) = 0.25;
+	// ugv.M(3,0) = 0.25;
 
-	// quadrotor.M(0,1) = 0;
-	// quadrotor.M(1,1) = -2*0.25/(quadrotor.moment_arm_l);
-	// quadrotor.M(2,1) = 0;
-	// quadrotor.M(3,1) = 2*0.25/(quadrotor.moment_arm_l);
+	// // ugv.M(0,1) = 0;
+	// // ugv.M(1,1) = -2*0.25/(ugv.moment_arm_l);
+	// // ugv.M(2,1) = 0;
+	// // ugv.M(3,1) = 2*0.25/(ugv.moment_arm_l);
 
-	// quadrotor.M(0,2) = 2*0.25/(quadrotor.moment_arm_l);
-	// quadrotor.M(1,2) = 0;
-	// quadrotor.M(2,2) = -2*0.25/(quadrotor.moment_arm_l);
-	// quadrotor.M(3,2) = 0;
+	// // ugv.M(0,2) = 2*0.25/(ugv.moment_arm_l);
+	// // ugv.M(1,2) = 0;
+	// // ugv.M(2,2) = -2*0.25/(ugv.moment_arm_l);
+	// // ugv.M(3,2) = 0;
 
-	quadrotor.M(0,1) = -1 / ( quadrotor.moment_arm_l * 4 );
-	quadrotor.M(1,1) = 1 / ( quadrotor.moment_arm_l * 4 );
-	quadrotor.M(2,1) = 1 / ( quadrotor.moment_arm_l * 4 );
-	quadrotor.M(3,1) = -1 / ( quadrotor.moment_arm_l * 4 );
+	// ugv.M(0,1) = -1 / ( ugv.moment_arm_l * 4 );
+	// ugv.M(1,1) = 1 / ( ugv.moment_arm_l * 4 );
+	// ugv.M(2,1) = 1 / ( ugv.moment_arm_l * 4 );
+	// ugv.M(3,1) = -1 / ( ugv.moment_arm_l * 4 );
 
-	quadrotor.M(0,2) = 1 / ( quadrotor.moment_arm_l * 4 );
-	quadrotor.M(1,2) = -1 / ( quadrotor.moment_arm_l * 4 );
-	quadrotor.M(2,2) = 1 / ( quadrotor.moment_arm_l * 4 );
-	quadrotor.M(3,2) = -1 / ( quadrotor.moment_arm_l * 4 );	
+	// ugv.M(0,2) = 1 / ( ugv.moment_arm_l * 4 );
+	// ugv.M(1,2) = -1 / ( ugv.moment_arm_l * 4 );
+	// ugv.M(2,2) = 1 / ( ugv.moment_arm_l * 4 );
+	// ugv.M(3,2) = -1 / ( ugv.moment_arm_l * 4 );	
 
-	quadrotor.M(0,3) = -1 / ( 4 * quadrotor.cT );
-	quadrotor.M(1,3) = -1 / ( 4 * quadrotor.cT );
-	quadrotor.M(2,3) = 1 / ( 4 * quadrotor.cT );
-	quadrotor.M(3,3) = 1 / ( 4 * quadrotor.cT );
+	// ugv.M(0,3) = -1 / ( 4 * ugv.cT );
+	// ugv.M(1,3) = -1 / ( 4 * ugv.cT );
+	// ugv.M(2,3) = 1 / ( 4 * ugv.cT );
+	// ugv.M(3,3) = 1 / ( 4 * ugv.cT );
 
-	// Set the size of g_barrier, capturing constraints on phi,theta,thrust
-	g_barrier = Eigen::MatrixXf::Zero(mpc_params.T,1);
+	// // Set the size of g_barrier, capturing constraints on phi,theta,thrust
+	// g_barrier = Eigen::MatrixXf::Zero(mpc_params.T,1);
 
-	// Set pointers to new Eigen::MatrixXfs, one for each time step
-	mpc_params.eig_R_rk = new Eigen::MatrixXf[mpc_params.T];
-	mpc_params.eig_R_r_lambda_k = new Eigen::MatrixXf[mpc_params.T];
-	mpc_params.eig_q = new Eigen::MatrixXf[mpc_params.T];
-	mpc_params.eig_q_rk = new Eigen::MatrixXf[mpc_params.T];
-	mpc_params.eig_q_lambda_k = new Eigen::MatrixXf[mpc_params.T];
+	// // Set pointers to new Eigen::MatrixXfs, one for each time step
+	// mpc_params.eig_R_rk = new Eigen::MatrixXf[mpc_params.T];
+	// mpc_params.eig_R_r_lambda_k = new Eigen::MatrixXf[mpc_params.T];
+	// mpc_params.eig_q = new Eigen::MatrixXf[mpc_params.T];
+	// mpc_params.eig_q_rk = new Eigen::MatrixXf[mpc_params.T];
+	// mpc_params.eig_q_lambda_k = new Eigen::MatrixXf[mpc_params.T];
 
 	// Set the size of the goal variable (xg,yg,zg,psi_g)
 	goal = Eigen::MatrixXf::Zero(4,1);
 
-	// Set the matrices storing the roll and pitch angles resulting from a given control policy
-	quadrotor.eig_phi = Eigen::MatrixXf::Zero(mpc_params.T,1);
-	quadrotor.eig_theta = Eigen::MatrixXf::Zero(mpc_params.T,1);
+	// // Set the matrices storing the roll and pitch angles resulting from a given control policy
+	// ugv.eig_phi = Eigen::MatrixXf::Zero(mpc_params.T,1);
+	// ugv.eig_theta = Eigen::MatrixXf::Zero(mpc_params.T,1);
 
 	// Initialize an object which stores many variables needed to compute a solution to the MPC problem
-	Matrix_Set temp_bomt(quadrotor, mpc_params);
+	Matrix_Set temp_bomt(ugv, mpc_params);
 
 	// Set the FMPC object's bomt object
 	bomt = temp_bomt;
 
 	// Set the b vector
-	bomt.b = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
+	bomt.b = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
 
-	// Allocate memory to Eigen::Matrices, one for each step in the path stride.
-	full_trajectory = new Eigen::MatrixXf[mpc_params.nu_X];
-	prevfull_trajectory = new Eigen::MatrixXf[mpc_params.nu_X];
-	full_trajectory_interf = new Eigen::MatrixXf[mpc_params.nu_X];
-	full_policy = new Eigen::MatrixXf[mpc_params.nu_X];
-	full_attitude = new Eigen::MatrixXf[mpc_params.nu_X];
-	prev_seg_eig_X = new Eigen::MatrixXf[mpc_params.nu_X];
-	prev_seg_eig_U = new Eigen::MatrixXf[mpc_params.nu_X];
+	// // Allocate memory to Eigen::Matrices, one for each step in the path stride.
+	// full_trajectory = new Eigen::MatrixXf[mpc_params.nu_X];
+	// prevfull_trajectory = new Eigen::MatrixXf[mpc_params.nu_X];
+	// full_trajectory_interf = new Eigen::MatrixXf[mpc_params.nu_X];
+	// full_policy = new Eigen::MatrixXf[mpc_params.nu_X];
+	// full_attitude = new Eigen::MatrixXf[mpc_params.nu_X];
+	// prev_seg_eig_X = new Eigen::MatrixXf[mpc_params.nu_X];
+	// prev_seg_eig_U = new Eigen::MatrixXf[mpc_params.nu_X];
 
 	// Set the local path to zero
 	localPath = Eigen::MatrixXf::Zero(1,3);
+	//Overwrite the local path with the reference path from csv recording
+	//num_waywpoints loaded from csv file
+	fmpc.localPath = Eigen::MatrixXf::Zero(num_waypoints, 3);
+	for (int i = 0; i < num_waypoints; i++) {
+    	fmpc.localPath(i, 0) = ref_x[i];
+    	fmpc.localPath(i, 1) = ref_y[i];
+    	fmpc.localPath(i, 2) = 0.0f;
+	}
 
 	// Set the parent ellipsoid to zero
-	parentEllipsoid = Eigen::MatrixXf::Zero(3,3);
+	parentEllipsoid = Eigen::MatrixXf::Zero(2,2);
 
 	// Set the size of the objective function value
 	Obj = Eigen::MatrixXf::Zero(1,1);
 
-	u_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
-	v_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
-	du1_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
-	ddu1_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
-	lambda_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
-	zeta_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
-	T_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
+	// u_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
+	// v_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
+	// du1_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
+	// ddu1_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
+	// lambda_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
+	// zeta_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
+	// T_k_nuX = new Eigen::MatrixXf[mpc_params.nu_X];
 
-	u_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
-	v_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
-	du1_k = Eigen::MatrixXf::Zero(1,mpc_params.T);
-	ddu1_k = Eigen::MatrixXf::Zero(1,mpc_params.T);
-	lambda_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
-	zeta_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// u_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// v_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// du1_k = Eigen::MatrixXf::Zero(1,mpc_params.T);
+	// ddu1_k = Eigen::MatrixXf::Zero(1,mpc_params.T);
+	// lambda_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// zeta_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
 
-	for (int i = 0; i < mpc_params.nu_X; i++)
-	{
+	// for (int i = 0; i < mpc_params.nu_X; i++)
+	// {
 
-		u_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
-		v_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
-		du1_k_nuX[i] = Eigen::MatrixXf::Zero(1,mpc_params.T);
-		ddu1_k_nuX[i] = Eigen::MatrixXf::Zero(1,mpc_params.T);
-		lambda_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
-		zeta_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
-		T_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// 	u_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// 	v_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// 	du1_k_nuX[i] = Eigen::MatrixXf::Zero(1,mpc_params.T);
+	// 	ddu1_k_nuX[i] = Eigen::MatrixXf::Zero(1,mpc_params.T);
+	// 	lambda_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// 	zeta_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// 	T_k_nuX[i] = Eigen::MatrixXf::Zero(4,mpc_params.T);
 
-	}
+	// }
 
 
 } // F_MPC_UNCUT::F_MPC_UNCUT()
@@ -1294,6 +1308,351 @@ F_MPC_UNCUT::~F_MPC_UNCUT()
 {
 	
 } // F_MPC_UNCUT::~F_MPC_UNCUT()
+
+
+#ifndef FMPC_APPLY_WEIGHT
+#define FMPC_APPLY_WEIGHT 1
+#endif
+
+
+// ---------------------------------------------------------------------------
+// Helper: read a dense matrix from a YAML sequence-of-sequences node.
+// Asserts that the loaded size matches (rows x cols).
+// ---------------------------------------------------------------------------
+static Eigen::MatrixXf yaml_to_eigen(const YAML::Node& node,
+                                     int rows, int cols,
+                                     const std::string& name)
+{
+    if (!node || !node.IsSequence())
+        throw std::runtime_error("load_params_yaml: missing or malformed node '" + name + "'");
+ 
+    Eigen::MatrixXf M = Eigen::MatrixXf::Zero(rows, cols);
+ 
+    for (int i = 0; i < rows; i++)
+    {
+        const YAML::Node& row = node[i];
+        if (!row || !row.IsSequence())
+            throw std::runtime_error("load_params_yaml: row " + std::to_string(i) +
+                                     " of '" + name + "' is not a sequence");
+        for (int j = 0; j < cols; j++)
+            M(i, j) = row[j].as<float>();
+    }
+    return M;
+}
+ 
+// ---------------------------------------------------------------------------
+// Helper: read a column vector (n x 1) from a YAML scalar sequence.
+// ---------------------------------------------------------------------------
+static Eigen::MatrixXf yaml_to_col(const YAML::Node& node,
+                                   int rows,
+                                   const std::string& name)
+{
+    if (!node || !node.IsSequence())
+        throw std::runtime_error("load_params_yaml: missing or malformed node '" + name + "'");
+ 
+    Eigen::MatrixXf v = Eigen::MatrixXf::Zero(rows, 1);
+    for (int i = 0; i < rows; i++)
+        v(i, 0) = node[i].as<float>();
+    return v;
+}
+ 
+// ---------------------------------------------------------------------------
+// Main loader
+// ---------------------------------------------------------------------------
+void F_MPC_UNCUT::load_params_yaml(const std::string& yaml_path)
+{
+    YAML::Node cfg;
+    try {
+        cfg = YAML::LoadFile(yaml_path);
+    } catch (const std::exception& e) {
+        throw std::runtime_error(
+            "load_params_yaml: cannot open '" + yaml_path + "': " + e.what());
+    }
+ 
+    // ------------------------------------------------------------------ //
+    // 1. PLATFORM                                                         //
+    // ------------------------------------------------------------------ //
+    {
+        auto& p = cfg["platform"];
+ 
+        ugv.width  = p["dimensions_m"]["width" ].as<float>();
+        ugv.length = p["dimensions_m"]["length"].as<float>();
+        ugv.height = p["dimensions_m"]["height"].as<float>();
+        ugv.mass   = p["mass_kg"].as<float>();
+ 
+        // UAV legacy fields — present so no divide-by-zero survives
+        ugv.moment_arm_l = p["moment_arm_l"].as<float>();
+        ugv.cT           = p["cT"].as<float>();
+ 
+        // 3x3 inertia matrix
+        ugv.inertia_matrix     = yaml_to_eigen(p["inertia_matrix"], 3, 3, "inertia_matrix");
+        ugv.inertia_matrix_inv = ugv.inertia_matrix.inverse();
+    }
+ 
+    // ------------------------------------------------------------------ //
+    // 2. DYNAMICS                                                         //
+    // ------------------------------------------------------------------ //
+    {
+        auto& d = cfg["dynamics"];
+ 
+        // UGV-specific params
+        auto& u      = d["ugv"];
+        ugv.Iz       = u["Iz" ].as<float>();
+        ugv.a        = u["a"  ].as<float>();
+        ugv.b        = u["b"  ].as<float>();
+        ugv.Pcf      = u["Pcf"].as<float>();
+        ugv.Pcr      = u["Pcr"].as<float>();
+        ugv.mass     = ugv.mass;        // keep in sync
+ 
+        // Camera FOV (degrees → radians)
+        ugv.half_camera_FOV =
+            d["camera_half_fov_deg"].as<float>() * static_cast<float>(M_PI) / 180.0f;
+ 
+        // Dimensions — may differ from stub .txt values
+        int n_new = d["state_dimension"  ].as<int>();
+        int m_new = d["control_dimension"].as<int>();
+ 
+        // If n or m changed, resize everything that depends on them.
+        // This mirrors the constructor's allocation logic.
+        bool dims_changed = (n_new != ugv.n) || (m_new != ugv.m);
+        ugv.n = n_new;
+        ugv.m = m_new;
+ 
+        // A and B matrices (discrete, already computed offline)
+        ugv.eig_A = yaml_to_eigen(d["A"], ugv.n, ugv.n, "A");
+        ugv.eig_B = yaml_to_eigen(d["B"], ugv.n, ugv.m, "B");
+ 
+        // Noise
+        auto& ns = d["noise"];
+        ugv.noise_source = ns["source_type"].as<int>();
+        float noise_var        = ns["variance"   ].as<float>();
+        ugv.noise_w      = Eigen::MatrixXf::Ones(ugv.n, mpc_params.T) * noise_var;
+ 
+        // mu_24: heading soft offset (degrees → radians)
+        mpc_params.mu_24 = ns["heading_soft_offset_deg"].as<float>()
+                           * static_cast<float>(M_PI) / 180.0f;
+ 
+        // If dims changed, rebuild boundary-condition matrices
+        if (dims_changed)
+        {
+            ugv.eig_Fx_hard_boundary_conditions =
+                Eigen::MatrixXf::Zero(2 * ugv.n, ugv.n);
+            ugv.eig_Fx_hard_boundary_conditions.block(0, 0, ugv.n, ugv.n) =
+                Eigen::MatrixXf::Identity(ugv.n, ugv.n);
+            ugv.eig_Fx_hard_boundary_conditions.block(ugv.n, 0, ugv.n, ugv.n) =
+                -Eigen::MatrixXf::Identity(ugv.n, ugv.n);
+ 
+            ugv.eig_x_hard_boundary_conditions =
+                Eigen::MatrixXf::Zero(2 * ugv.n, mpc_params.T);
+ 
+            ugv.eig_Fx_soft_boundary_conditions =
+                Eigen::MatrixXf::Zero(2 * ugv.n, ugv.n);
+            ugv.eig_Fx_soft_boundary_conditions.block(0, 0, ugv.n, ugv.n) =
+                Eigen::MatrixXf::Identity(ugv.n, ugv.n);
+            ugv.eig_Fx_soft_boundary_conditions.block(ugv.n, 0, ugv.n, ugv.n) =
+                -Eigen::MatrixXf::Identity(ugv.n, ugv.n);
+ 
+            ugv.eig_x_soft_boundary_conditions =
+                Eigen::MatrixXf::Zero(2 * ugv.n, mpc_params.T);
+ 
+            ugv.X0 = Eigen::VectorXf::Zero(ugv.n);
+        }
+    }
+ 
+    // ------------------------------------------------------------------ //
+    // 3. CONSTRAINTS                                                      //
+    // ------------------------------------------------------------------ //
+    {
+        auto& c  = cfg["constraints"];
+        auto& ch = c["control"]["hard"];
+        auto& cs = c["control"]["soft"];
+ 
+        int num_hard_u = ch["count"].as<int>();
+        int num_soft_u = cs["count"].as<int>();
+        ugv.num_hard_u = num_hard_u;
+        ugv.num_soft_u = num_soft_u;
+ 
+        // Hard control constraint matrix and bounds
+        ugv.eig_Fu_hard =
+            yaml_to_eigen(ch["matrix"], num_hard_u, ugv.m, "Fu_hard");
+        ugv.eig_u_hard_bounds =
+            yaml_to_col(ch["bounds"], num_hard_u, "fu_hard").col(0);
+ 
+        // Soft control constraint matrix and bounds
+        ugv.eig_Fu_soft =
+            yaml_to_eigen(cs["matrix"], num_soft_u, ugv.m, "Fu_soft");
+        ugv.eig_u_soft_bounds =
+            yaml_to_col(cs["bounds"], num_soft_u, "fu_soft").col(0);
+ 
+        // Altitude limits (UGV: sentinels so no constraint fires)
+        auto& alt = c["altitude"];
+        ugv.eig_z_hard_bounds(0) =  alt["hard_ceiling_m"].as<float>();
+        ugv.eig_z_hard_bounds(1) = -alt["hard_floor_m"  ].as<float>();
+        ugv.eig_z_soft_bounds(0) =  alt["soft_ceiling_m"].as<float>();
+        ugv.eig_z_soft_bounds(1) = -alt["soft_floor_m"  ].as<float>();
+ 
+        // Attitude limits (UAV legacy; not active in UGV gbarrier)
+        auto& att = c["attitude"];
+        ugv.phi_max   = att["phi_max_rad"  ].as<float>();
+        ugv.theta_max = att["theta_max_rad"].as<float>();
+ 
+        // Thrust / force limits
+        auto& thr = c["thrust"];
+        ugv.T_min = thr["min"].as<float>();
+        ugv.T_max = thr["max"].as<float>();
+    }
+ 
+    // ------------------------------------------------------------------ //
+    // 4. MPC SOLVER                                                       //
+    // ------------------------------------------------------------------ //
+    {
+        auto& m = cfg["mpc"];
+ 
+        // Scalar solver params
+        mpc_params.T             = m["T"            ].as<int>();
+        mpc_params.delta_t       = m["delta_t"      ].as<float>();
+        mpc_params.num_iterations= m["num_iterations"].as<int>();
+        mpc_params.tol_sq        = m["residual_tolerance"].as<float>()
+                                   * m["residual_tolerance"].as<float>();
+ 
+        mpc_params.alpha              = m["alpha" ].as<float>();
+        mpc_params.beta               = m["beta"  ].as<float>();
+        mpc_params.line_search_style  = m["line_search_style"].as<int>();
+ 
+        mpc_params.mu_12         = m["mu_12"].as<float>();
+        mpc_params.mu_12_initial = mpc_params.mu_12;
+        mpc_params.mu_13         = m["mu_13"].as<float>();
+        mpc_params.mu_13_initial = mpc_params.mu_13;
+        mpc_params.gamma         = m["gamma"].as<float>();
+ 
+        mpc_params.rObs_saturation = m["rObs_saturation"].as<float>();
+ 
+        mpc_params.mu_10 = m["mu_10"].as<float>();
+        mpc_params.mu_11 = m["mu_11"].as<float>();
+        mpc_params.mu_14 = m["mu_14"].as<float>();
+        mpc_params.mu_15 = m["mu_15"].as<float>();
+        mpc_params.mu_16 = m["mu_16"].as<float>();
+        mpc_params.mu_17 = m["mu_17"].as<float>();
+        mpc_params.mu_18 = m["mu_18"].as<float>();
+        mpc_params.mu_19 = m["mu_19"].as<float>();
+        mpc_params.mu_20 = 0.0f;          // never read from file in original; stays zero
+ 
+        mpc_params.discount_form = m["discount_form"].as<int>();
+        mpc_params.mu_21         = m["mu_21"].as<float>();
+        mpc_params.mu_22         = m["mu_22"].as<float>();
+        mpc_params.mu_23         = m["mu_23"].as<float>();
+ 
+        mpc_params.nu_X                            = m["nu_X"].as<int>();
+        mpc_params.collisionAvoidanceSoftConstraintOffset =
+            m["collision_avoidance_soft_offset"].as<float>();
+ 
+        // --- Weighting matrices ---
+        // _weight = 8.5 replicates the original constructor scaling.
+        const float _weight = FMPC_APPLY_WEIGHT ? 8.5f : 1.0f;
+        const int n = ugv.n;
+        const int mc = ugv.m;
+ 
+        mpc_params.eig_R_r_tilde =
+            _weight * yaml_to_eigen(m["tilde_R_r"], n, n, "tilde_R_r");
+ 
+        mpc_params.eig_R_rf =
+            _weight * yaml_to_eigen(m["R_r_f"], n, n, "R_r_f");
+ 
+        // R_lambda: (m x m). YAML stores as sequence-of-sequences regardless of m.
+        mpc_params.eig_R_lambda_tilde =
+            yaml_to_eigen(m["R_lambda"], mc, mc, "R_lambda");
+        mpc_params.eig_R_lambda      = mpc_params.eig_R_lambda_tilde;
+        mpc_params.eig_R_lambda_init = mpc_params.eig_R_lambda_tilde;
+ 
+        mpc_params.eig_R_r_lambda_tilde =
+            yaml_to_eigen(m["tilde_R_r_lambda"], n, mc, "tilde_R_r_lambda");
+ 
+        // tilde_q_r is (n-2 x 1)
+        mpc_params.eig_q_r_tilde =
+            yaml_to_col(m["tilde_q_r"], n - 2, "tilde_q_r");
+ 
+        mpc_params.q_psi = m["q_psi"].as<float>();
+ 
+        mpc_params.eig_q_lambda_tilde =
+            yaml_to_col(m["tilde_q_lambda"], mc, "tilde_q_lambda");
+ 
+        // Verify Schur complement condition (eq. 3.39 in Marshall et al.)
+        Eigen::MatrixXf RHS_LMI =
+            mpc_params.eig_R_r_tilde
+            - 2.0f * mpc_params.eig_R_r_lambda_tilde
+              * mpc_params.eig_R_lambda_tilde.inverse()
+              * mpc_params.eig_R_r_lambda_tilde.transpose();
+ 
+        Eigen::VectorXcf ev = RHS_LMI.eigenvalues();
+        for (int i = 0; i < n; i++)
+        {
+            if (ev(i).real() <= 0.0f)
+            {
+                throw std::runtime_error(
+                    "load_params_yaml: Schur complement condition "
+                    "(positive-definiteness of tilde_R) not satisfied. "
+                    "Check tilde_R_r and R_lambda values.");
+            }
+        }
+    }
+ 
+    // ------------------------------------------------------------------ //
+    // 5. PLANNER                                                          //
+    // ------------------------------------------------------------------ //
+    {
+        auto& p = cfg["planner"];
+        mpc_params.bc_epsilon                 = p["boundary_condition_slack" ].as<float>();
+        mpc_params.centering_soft_constraints = p["centering_soft_constraints"].as<bool>() ? 1.0f : 0.0f;
+        mpc_params.goal_tolerance             = p["goal_tolerance_m"          ].as<float>();
+    }
+ 
+    // ------------------------------------------------------------------ //
+    // 6. LINE SEARCH                                                      //
+    // ------------------------------------------------------------------ //
+    {
+        auto& ls = cfg["line_search"];
+        lsp.dichoto_a1      = ls["dichoto_a1"     ].as<float>();
+        lsp.dichoto_b1      = ls["dichoto_b1"     ].as<float>();
+        lsp.dichoto_l       = ls["dichoto_l"      ].as<float>();
+        lsp.dichoto_epsilon = ls["dichoto_epsilon"].as<float>();
+    }
+ 
+    // ------------------------------------------------------------------ //
+    // 7. POST-LOAD FIXUPS                                                 //
+    // These mirror the final setup steps at the bottom of the            //
+    // constructor that depend on the loaded values.                      //
+    // ------------------------------------------------------------------ //
+ 
+    // Heading and altitude constraint matrices (originally built from
+    // dummy_Fpsi / dummy_Fz in the constructor with hardcoded size 14).
+    // Rebuilt here for the actual n.
+    {
+        const int n = ugv.n;
+ 
+        Eigen::MatrixXf Fpsi = Eigen::MatrixXf::Zero(2, n);
+        // Heading angle is state index 2 (ψ) in the UGV model [y, vy, ψ, ψ̇]
+        Fpsi(0, 2) =  1.0f;
+        Fpsi(1, 2) = -1.0f;
+        ugv.eig_Fpsi_hard = Fpsi;
+        ugv.eig_Fpsi_soft = Fpsi;
+ 
+        Eigen::MatrixXf Fz = Eigen::MatrixXf::Zero(2, n);
+        // No meaningful Z state in UGV — leave as zeros so altitude
+        // constraints never fire (bounds are sentinel ±1000).
+        ugv.eig_Fz_hard_ceiling = Fz;
+        ugv.eig_Fz_soft_ceiling = Fz;
+    }
+ 
+    // Noise matrix re-sized to new T if it changed
+    ugv.noise_w = Eigen::MatrixXf::Ones(ugv.n, mpc_params.T)
+                        * cfg["dynamics"]["noise"]["variance"].as<float>();
+ 
+    std::cout << "<FMPC> load_params_yaml complete: n=" << ugv.n
+              << " m=" << ugv.m
+              << " T=" << mpc_params.T
+              << " from '" << yaml_path << "'" << std::endl;
+ 
+} // void F_MPC_UNCUT::load_params_yaml(const std::string&)
 
 
 // Member function of F_MPC_UNCUT
@@ -1350,27 +1709,49 @@ void F_MPC_UNCUT::quit_handler( int sig )
 } // void F_MPC_UNCUT::quit_handler( int sig )
 
 
+void F_MPC_UNCUT::verifyDimensions() const
+{
+    auto fail = [](const std::string& msg) {
+        throw std::runtime_error("FMPC dimension error: " + msg);
+    };
+
+    if (ugv.eig_A.rows() != ugv.n ||
+        ugv.eig_A.cols() != ugv.n)
+        fail("A matrix must be n x n");
+
+    if (ugv.eig_B.rows() != ugv.n ||
+        ugv.eig_B.cols() != ugv.m)
+        fail("B matrix must be n x m");
+
+    if (ugv.num_hard_u <= 0)
+        fail("No hard control constraints defined");
+
+    if (mpc_params.T <= 0)
+        fail("Time horizon T must be positive");
+}
+
+
 // Member function of F_MPC_UNCUT object
 // compute_Gamma: this function computes the Gamma matrix used in rotational kinematic eqn
 // INPUTS: none
 // OUTPUTS: none (this function modifies member variables)
-void F_MPC_UNCUT::compute_Gamma()
-{
-	float phi = pose[12], theta = pose[13];
+// void F_MPC_UNCUT::compute_Gamma()
+// {
+// 	float phi = pose[12], theta = pose[13];
 
-	Gamma(0,0) = 1.0; 
-	Gamma(1,0) = 0.0; 
-	Gamma(2,0) = 0.0; 
+// 	Gamma(0,0) = 1.0; 
+// 	Gamma(1,0) = 0.0; 
+// 	Gamma(2,0) = 0.0; 
 
-	Gamma(0,1) = sin(phi)*tan(theta); 
-	Gamma(1,1) = cos(phi); 
-	Gamma(2,1) = sin(phi)*(1/cos(theta)); 
+// 	Gamma(0,1) = sin(phi)*tan(theta); 
+// 	Gamma(1,1) = cos(phi); 
+// 	Gamma(2,1) = sin(phi)*(1/cos(theta)); 
 
-	Gamma(0,2) = cos(phi)*tan(theta); 
-	Gamma(1,2) = -sin(phi); 
-	Gamma(2,2) = cos(phi)*(1/cos(theta)); 	
+// 	Gamma(0,2) = cos(phi)*tan(theta); 
+// 	Gamma(1,2) = -sin(phi); 
+// 	Gamma(2,2) = cos(phi)*(1/cos(theta)); 	
 
-} // void F_MPC_UNCUT::compute_Gamma()
+// } // void F_MPC_UNCUT::compute_Gamma()
 
 
 // Member function of F_MPC_UNCUT object
@@ -1378,48 +1759,48 @@ void F_MPC_UNCUT::compute_Gamma()
 // INPUTS: float representing roll angle, float representing pitch angle, float representing heading angle
 // pointer to a matrix representing Gamma
 // OUTPUTS: none (this function modifies values pointed at by the last argument)
-void F_MPC_UNCUT::compute_Gamma(float phi, float theta, float psi, Eigen::MatrixXf* Gamma_k)
-{
+// void F_MPC_UNCUT::compute_Gamma(float phi, float theta, float psi, Eigen::MatrixXf* Gamma_k)
+// {
 
-	(*Gamma_k)(0,0) = 1.0; 
-	(*Gamma_k)(1,0) = 0.0; 
-	(*Gamma_k)(2,0) = 0.0; 
+// 	(*Gamma_k)(0,0) = 1.0; 
+// 	(*Gamma_k)(1,0) = 0.0; 
+// 	(*Gamma_k)(2,0) = 0.0; 
 
-	(*Gamma_k)(0,1) = sin(phi)*tan(theta); 
-	(*Gamma_k)(1,1) = cos(phi); 
-	(*Gamma_k)(2,1) = sin(phi)*(1/cos(theta)); 
+// 	(*Gamma_k)(0,1) = sin(phi)*tan(theta); 
+// 	(*Gamma_k)(1,1) = cos(phi); 
+// 	(*Gamma_k)(2,1) = sin(phi)*(1/cos(theta)); 
 
-	(*Gamma_k)(0,2) = cos(phi)*tan(theta); 
-	(*Gamma_k)(1,2) = -sin(phi); 
-	(*Gamma_k)(2,2) = cos(phi)*(1/cos(theta)); 	
+// 	(*Gamma_k)(0,2) = cos(phi)*tan(theta); 
+// 	(*Gamma_k)(1,2) = -sin(phi); 
+// 	(*Gamma_k)(2,2) = cos(phi)*(1/cos(theta)); 	
 
-} // void F_MPC_UNCUT::compute_Gamma(float phi, float theta, float psi, Eigen::MatrixXf* Gamma_k)
+// } // void F_MPC_UNCUT::compute_Gamma(float phi, float theta, float psi, Eigen::MatrixXf* Gamma_k)
 
 
 // Member function of F_MPC_UNCUT object
 // get_Omega: gets the vector storing the angular velocity
 // INPUTS: none
 // OUTPUTS: none
-void F_MPC_UNCUT::get_Omega()
-{
+// void F_MPC_UNCUT::get_Omega()
+// {
 	
-	omega(0,0) = pose[15];
-	omega(1,0) = pose[16];
-	omega(2,0) = pose[17];
+// 	omega(0,0) = pose[15];
+// 	omega(1,0) = pose[16];
+// 	omega(2,0) = pose[17];
 
-} // void F_MPC_UNCUT::get_Omega()
+// } // void F_MPC_UNCUT::get_Omega()
 
 
 // Member function of F_MPC_UNCUT object
 // compute_dEuler: computes the rotational kinematic equation
 // INPUTS: none
 // OUTPUTS: none
-void F_MPC_UNCUT::compute_dEuler()
-{
+// void F_MPC_UNCUT::compute_dEuler()
+// {
 	
-	dEuler = Gamma*omega;
+// 	dEuler = Gamma*omega;
 
-} // void F_MPC_UNCUT::compute_dEuler()
+// } // void F_MPC_UNCUT::compute_dEuler()
 
 
 // Member function of F_MPC_UNCUT object
@@ -1440,11 +1821,11 @@ void F_MPC_UNCUT::find_closest_obstacle(Eigen::MatrixXf* temp_goal_pos, int segm
 	Eigen::MatrixXf position = Eigen::MatrixXf::Zero(3,1);
 	Eigen::MatrixXf dot_prod = Eigen::MatrixXf::Zero(1,1);
 
-	direction(0,0) = cos(quadrotor.X0(12));
-	direction(1,0) = sin(quadrotor.X0(12));
+	direction(0,0) = cos(ugv.X0(12));
+	direction(1,0) = sin(ugv.X0(12));
 
-	position(0,0) = quadrotor.X0(0);
-	position(1,0) = quadrotor.X0(1);
+	position(0,0) = ugv.X0(0);
+	position(1,0) = ugv.X0(1);
 
 	// If there are obstacles
 	if (local_obs.rows() > 0)
@@ -1492,9 +1873,9 @@ void F_MPC_UNCUT::find_closest_obstacle(Eigen::MatrixXf* temp_goal_pos, int segm
 		else
 		{
 
-			r_obs(0,0) = quadrotor.X0(0); 
-			r_obs(1,0) = quadrotor.X0(1); 
-			r_obs(2,0) = quadrotor.X0(2); 
+			r_obs(0,0) = ugv.X0(0); 
+			r_obs(1,0) = ugv.X0(1); 
+			r_obs(2,0) = ugv.X0(2); 
 
 		} // if (d2.size() > 0)
 
@@ -1514,9 +1895,9 @@ void F_MPC_UNCUT::find_closest_obstacle(Eigen::MatrixXf* temp_goal_pos, int segm
 		else
 		{
 			
-			r_obs(0,0) = quadrotor.X0(0); 
-			r_obs(1,0) = quadrotor.X0(1); 
-			r_obs(2,0) = quadrotor.X0(2); 
+			r_obs(0,0) = ugv.X0(0); 
+			r_obs(1,0) = ugv.X0(1); 
+			r_obs(2,0) = ugv.X0(2); 
 
 		} // if (localPath.rows() > 0)
 
@@ -1594,10 +1975,10 @@ void F_MPC_UNCUT::update_weighting_matrices(int segment_number, bool success)
 
 	temp = Eigen::MatrixXf::Zero(3,1);
 	fsat_arg = Eigen::MatrixXf::Zero(3,1);
-	priority_weight = Eigen::MatrixXf::Zero(quadrotor.n,1);
-	temp(0,0) = quadrotor.X0(0);
-	temp(1,0) = quadrotor.X0(1);
-	temp(2,0) = quadrotor.X0(2);
+	priority_weight = Eigen::MatrixXf::Zero(ugv.n,1);
+	temp(0,0) = ugv.X0(0);
+	temp(1,0) = ugv.X0(1);
+	temp(2,0) = ugv.X0(2);
 
 	// If the planned path exists, and we are not looking past the end of the path
 	if (localPath.rows() > 0 && traj_iterator > 0 && traj_iterator < localPath.rows())
@@ -1637,7 +2018,7 @@ void F_MPC_UNCUT::update_weighting_matrices(int segment_number, bool success)
 	// Reset the matrix weighting the control input (it does not have a time dependence unlike the others)
 	mpc_params.eig_R_lambda = mpc_params.eig_R_lambda_tilde; // have to reset this matrix due to the discounting
 
-	Eigen::MatrixXf RHS_LMI = Eigen::MatrixXf::Zero(quadrotor.n,quadrotor.n);
+	Eigen::MatrixXf RHS_LMI = Eigen::MatrixXf::Zero(ugv.n,ugv.n);
 
 	Eigen::VectorXcf discrete_LMI_eigenvalues;
 
@@ -1648,21 +2029,21 @@ void F_MPC_UNCUT::update_weighting_matrices(int segment_number, bool success)
 	{
 		
 		// Set the weighting matrices to zero
-		mpc_params.eig_R_rk[i] = Eigen::MatrixXf::Zero(quadrotor.n,quadrotor.n);
-		mpc_params.eig_R_r_lambda_k[i] = Eigen::MatrixXf::Zero(quadrotor.n,quadrotor.m);
-		mpc_params.eig_q_rk[i] = Eigen::MatrixXf::Zero(quadrotor.n-2,1);
-		mpc_params.eig_q_lambda_k[i] = Eigen::MatrixXf::Zero(quadrotor.m,1);
-		mpc_params.eig_q[i] = Eigen::MatrixXf::Zero(quadrotor.n,1);
+		mpc_params.eig_R_rk[i] = Eigen::MatrixXf::Zero(ugv.n,ugv.n);
+		mpc_params.eig_R_r_lambda_k[i] = Eigen::MatrixXf::Zero(ugv.n,ugv.m);
+		mpc_params.eig_q_rk[i] = Eigen::MatrixXf::Zero(ugv.n-2,1);
+		mpc_params.eig_q_lambda_k[i] = Eigen::MatrixXf::Zero(ugv.m,1);
+		mpc_params.eig_q[i] = Eigen::MatrixXf::Zero(ugv.n,1);
 
 		// Compute the weighting matrices
 		if (success || segment_number == 0)
 		{
 
-			mpc_params.eig_R_rk[i] = recast_weight*(1/g_barrier(i,0))*mpc_params.eig_R_r_tilde;
-			mpc_params.eig_R_r_lambda_k[i] = recast_weight*(1/g_barrier(i,0))*mpc_params.eig_R_r_lambda_tilde;
-			mpc_params.eig_q_rk[i] = recast_weight*( mpc_params.eig_q_r_tilde - 0 * mpc_params.eig_R_r_tilde.block(0,0,12,12) * priority_weight.block(0,0,quadrotor.n-2,1));
+			// mpc_params.eig_R_rk[i] = recast_weight*(1/g_barrier(i,0))*mpc_params.eig_R_r_tilde;
+			// mpc_params.eig_R_r_lambda_k[i] = recast_weight*(1/g_barrier(i,0))*mpc_params.eig_R_r_lambda_tilde;
+			mpc_params.eig_q_rk[i] = recast_weight*( mpc_params.eig_q_r_tilde - 0 * mpc_params.eig_R_r_tilde.block(0,0,12,12) * priority_weight.block(0,0,ugv.n-2,1));
 			mpc_params.eig_q_lambda_k[i] = mpc_params.eig_q_lambda_tilde - 0 * mpc_params.eig_R_r_lambda_tilde.transpose() * priority_weight;
-			mpc_params.eig_R_lambda = (1/g_barrier(i,0))*mpc_params.eig_R_lambda_init;
+			// mpc_params.eig_R_lambda = (1/g_barrier(i,0))*mpc_params.eig_R_lambda_init;
 			(mpc_params.eig_q[i]).block(0,0,12,1) = mpc_params.eig_q_rk[i];
 			mpc_params.eig_q[i](12,0) = mpc_params.q_psi;
 			mpc_params.eig_q[i](13,0) = 0.0;
@@ -1674,7 +2055,7 @@ void F_MPC_UNCUT::update_weighting_matrices(int segment_number, bool success)
 			discrete_LMI_eigenvalues = RHS_LMI.eigenvalues();		
 
 			// Iterate over the number of states
-			for (unsigned short int j = 0; j < quadrotor.n; j++)
+			for (unsigned short int j = 0; j < ugv.n; j++)
 			{
 				
 				if (discrete_LMI_eigenvalues(j).real() <= 0.0)
@@ -1702,7 +2083,7 @@ void F_MPC_UNCUT::update_weighting_matrices(int segment_number, bool success)
 		{
 			mpc_params.eig_R_rk[i] = mpc_params.eig_R_r_tilde;
 			mpc_params.eig_R_r_lambda_k[i] = mpc_params.eig_R_r_lambda_tilde;
-			mpc_params.eig_q_rk[i] = 0*recast_weight*( mpc_params.eig_q_r_tilde - 0 * mpc_params.eig_R_r_tilde.block(0,0,12,12) * priority_weight.block(0,0,quadrotor.n-2,1));
+			mpc_params.eig_q_rk[i] = 0*recast_weight*( mpc_params.eig_q_r_tilde - 0 * mpc_params.eig_R_r_tilde.block(0,0,12,12) * priority_weight.block(0,0,ugv.n-2,1));
 			mpc_params.eig_q_lambda_k[i] = 0*mpc_params.eig_q_lambda_tilde - 0 * mpc_params.eig_R_r_lambda_tilde.transpose() * priority_weight;
 			mpc_params.eig_R_lambda = mpc_params.eig_R_lambda_init;
 			(mpc_params.eig_q[i]).block(0,0,12,1) = mpc_params.eig_q_rk[i];
@@ -1778,7 +2159,7 @@ bool F_MPC_UNCUT::validates_collision_constraints()
 		n2 = n0.cross(n1); 
 
 		// Find a point on the plane
-		p_temp = quadrotor.X0.head(3) + n2*plane_size + n1*plane_size + n0*d;
+		p_temp = ugv.X0.head(3) + n2*plane_size + n1*plane_size + n0*d;
 		p.col(j) = Eigen::Map<Eigen::MatrixXf>(p_temp.data(),3,1);
 
 	} // for (int j = 0; j < collisionConstraints.rows(); j++)
@@ -1786,8 +2167,8 @@ bool F_MPC_UNCUT::validates_collision_constraints()
 	// Iterate over the number of constraints
 	for (int j = 0; j < collisionConstraints.rows(); j++)
 	{
-		// Project the quadrotor point onto each constraint
-		v = quadrotor.X0.head(3) - Eigen::Map<Eigen::Vector3f>(p.col(j).data(),3);
+		// Project the ugv point onto each constraint
+		v = ugv.X0.head(3) - Eigen::Map<Eigen::Vector3f>(p.col(j).data(),3);
 		
 		if (abs(collisionConstraints.block(j,0,1,3).norm()) < 10e-6)
 		{
@@ -1799,7 +2180,7 @@ bool F_MPC_UNCUT::validates_collision_constraints()
 		n0(2) = collisionConstraints(j,2);
 		dist = v.dot(-n0);
 
-		proj_quad_on_plane_temp = quadrotor.X0.head(3) + dist*n0;
+		proj_quad_on_plane_temp = ugv.X0.head(3) + dist*n0;
 		proj_quad_on_plane.col(j) = Eigen::Map<Eigen::MatrixXf>(proj_quad_on_plane_temp.data(),3,1);
 
 		// If the vectors do not point in opposite directions, 
@@ -1819,85 +2200,135 @@ bool F_MPC_UNCUT::validates_collision_constraints()
 
 }
 
+// // Member function of F_MPC_UNCUT object
+// // get_Ginv_k: computes G_inv
+// // INPUTS: floats representing the roll, pitch, and heading angles,
+// // float representing the total thrust, pointer to a matrix representing 
+// // Ginv_k.
+// // OUTPUTS: none
+// void F_MPC_UNCUT::get_Ginv_k(float phi, float theta, float psi, float u1, Eigen::MatrixXf* G_inv)
+// {
+
+// 	float cp = cos(phi);
+// 	float ct = cos(theta);
+// 	float ci = cos(psi);
+// 	float sp = sin(phi);
+// 	float st = sin(theta);
+// 	float si = sin(psi);
+
+// 	float I1 = ugv.inertia_matrix(0,0);
+// 	float I2 = ugv.inertia_matrix(1,1);
+// 	float I3 = ugv.inertia_matrix(2,2);
+
+// 	(*G_inv)(0,0) = ugv.mass*(sp*si + cp*ci*st);  
+// 	(*G_inv)(0,1) = ugv.mass*(cp*si*st - ci*sp);
+// 	(*G_inv)(0,2) = ugv.mass*(cp*ct);
+// 	(*G_inv)(0,3) = 0;
+
+// 	(*G_inv)(1,0) = (ugv.mass*I1*(cp*si-ci*sp*st)) / (u1);
+// 	(*G_inv)(1,1) = -(ugv.mass*I1*(cp*ci+si*sp*st)) / (u1);
+// 	(*G_inv)(1,2) = -(ugv.mass*I1*(ct*sp)) / (u1);
+// 	(*G_inv)(1,3) = 0;
+
+// 	(*G_inv)(2,0) = (ugv.mass*I2*(ci*ct)) / (u1);
+// 	(*G_inv)(2,1) = (ugv.mass*I2*(ct*si)) / (u1);
+// 	(*G_inv)(2,2) = -(ugv.mass*I2*(st)) / (u1);
+// 	(*G_inv)(2,3) = 0;
+
+// 	(*G_inv)(3,0) = -(ugv.mass*I3*(ci*ct*sp)) / (u1*cp);
+// 	(*G_inv)(3,1) = -(ugv.mass*I3*(ct*si*sp)) / (u1*cp);
+// 	(*G_inv)(3,2) = (ugv.mass*I3*(st*sp)) / (u1*cp);
+// 	(*G_inv)(3,3) = (ugv.mass*I3*(ct)) / cp;
+
+// 	// cout << "<FMPC> get_Ginv_k complete" << endl;
+
+// } // void F_MPC_UNCUT::get_Ginv_k(float phi, float theta, float psi, float u1, Eigen::MatrixXf* G_inv)
+
+
+
+// // Member function of F_MPC_UNCUT object
+// // get_f_k: computes f
+// // INPUTS: floats representing the roll, pitch, and heading angles,
+// // pointer to a matrix the angular velocity, float representing the total thrust
+// // pointer to a matrix representing a float, integer representing the time step
+// // OUTPUTS: none
+// void F_MPC_UNCUT::get_f_k(float phi, float theta, float psi, Eigen::MatrixXf* omega, float u1, float u1_dot, Eigen::MatrixXf* f, int i)
+// {
+
+// 	float cp = cos(phi);
+// 	float ct = cos(theta);
+// 	float ci = cos(psi);
+// 	float sp = sin(phi);
+// 	float st = sin(theta);
+// 	float si = sin(psi);
+
+// 	float I1 = ugv.inertia_matrix(0,0);
+// 	float I2 = ugv.inertia_matrix(1,1);
+// 	float I3 = ugv.inertia_matrix(2,2);
+
+// 	float mass = ugv.mass;
+
+// 	float omega1 = (*omega)(0,i);
+// 	float omega2 = (*omega)(1,i);
+// 	float omega3 = (*omega)(2,i);
+
+// 	(*f)(0,0) = u1_dot*(((cp*si - ci*sp*st)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(mass*ct) + ((ci*sp - cp*si*st)*(omega3*cp + omega2*sp))/(mass*ct) + (cp*ci*ct*(omega2*cp - omega3*sp))/mass) + ((omega3*cp + omega2*sp)*((u1_dot*(ci*sp - cp*si*st))/mass - (u1*(sp*si + cp*ci*st)*(omega3*cp + omega2*sp))/(mass*ct) + (u1*(cp*ci + sp*si*st)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(mass*ct) - (u1*cp*ct*si*(omega2*cp - omega3*sp))/mass))/ct - (ci*(omega2*cp - omega3*sp)*(omega2*u1*st - u1_dot*cp*ct + omega1*u1*ct*sp))/mass - ((omega1*ct + omega3*cp*st + omega2*sp*st)*(omega1*u1*sp*si - u1_dot*cp*si + u1_dot*ci*sp*st + omega1*u1*cp*ci*st))/(mass*ct) + (omega2*omega3*u1*(I2 - I3)*(cp*si - ci*sp*st))/(I1*mass) - (omega1*omega3*u1*ci*ct*(I1 - I3))/(I2*mass);
+// 	(*f)(1,0) = u1_dot*(((sp*si + cp*ci*st)*(omega3*cp + omega2*sp))/(mass*ct) - ((cp*ci + sp*si*st)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(mass*ct) + (cp*ct*si*(omega2*cp - omega3*sp))/mass) + ((omega3*cp + omega2*sp)*((u1_dot*(sp*si + cp*ci*st))/mass + (u1*(ci*sp - cp*si*st)*(omega3*cp + omega2*sp))/(mass*ct) + (u1*(cp*si - ci*sp*st)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(mass*ct) + (u1*cp*ci*ct*(omega2*cp - omega3*sp))/mass))/ct - ((omega1*ct + omega3*cp*st + omega2*sp*st)*(u1_dot*cp*ci + u1_dot*sp*si*st - omega1*u1*ci*sp + omega1*u1*cp*si*st))/(mass*ct) - (si*(omega2*cp - omega3*sp)*(omega2*u1*st - u1_dot*cp*ct + omega1*u1*ct*sp))/mass - (omega2*omega3*u1*(I2 - I3)*(cp*ci + sp*si*st))/(I1*mass) - (omega1*omega3*u1*ct*si*(I1 - I3))/(I2*mass);
+// 	(*f)(2,0) = (omega1*omega3*u1*st*(I1 - I3))/(I2*mass) - ((u1_dot*sp + omega1*u1*cp)*(omega1*ct + omega3*cp*st + omega2*sp*st))/mass - ((omega2*cp - omega3*sp)*(omega2*u1*ct + u1_dot*cp*st - omega1*u1*sp*st))/mass - (u1_dot*(omega2*st + omega1*ct*sp))/mass - (omega2*omega3*u1*ct*sp*(I2 - I3))/(I1*mass);
+// 	(*f)(3,0) = ((omega2*cp - omega3*sp)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(ct*ct) + (st*(omega3*cp + omega2*sp)*(omega2*cp - omega3*sp))/(ct*ct) + (omega1*omega2*cp*(I1 - I2))/(I3*ct) - (omega1*omega3*sp*(I1 - I3))/(I2*ct);
+
+// 	// cout << "<FMPC> get_f_k complete" << endl;
+
+// } // void F_MPC_UNCUT::get_f_k(float phi, float theta, float psi, Eigen::MatrixXf* omega, float u1, float u1_dot, Eigen::MatrixXf* f, int i)
+
+////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+//UGV-specific functions: Ginv and f are different for the UGV, so we have separate functions for them
+////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
 // Member function of F_MPC_UNCUT object
 // get_Ginv_k: computes G_inv
-// INPUTS: floats representing the roll, pitch, and heading angles,
-// float representing the total thrust, pointer to a matrix representing 
-// Ginv_k.
+// INPUTS: pointer to a matrix representing Ginv_k.
 // OUTPUTS: none
-void F_MPC_UNCUT::get_Ginv_k(float phi, float theta, float psi, float u1, Eigen::MatrixXf* G_inv)
+void F_MPC_UNCUT::get_Ginv_k(Eigen::MatrixXf* G_inv)
 {
-
-	float cp = cos(phi);
-	float ct = cos(theta);
-	float ci = cos(psi);
-	float sp = sin(phi);
-	float st = sin(theta);
-	float si = sin(psi);
-
-	float I1 = quadrotor.inertia_matrix(0,0);
-	float I2 = quadrotor.inertia_matrix(1,1);
-	float I3 = quadrotor.inertia_matrix(2,2);
-
-	(*G_inv)(0,0) = quadrotor.mass*(sp*si + cp*ci*st);  
-	(*G_inv)(0,1) = quadrotor.mass*(cp*si*st - ci*sp);
-	(*G_inv)(0,2) = quadrotor.mass*(cp*ct);
-	(*G_inv)(0,3) = 0;
-
-	(*G_inv)(1,0) = (quadrotor.mass*I1*(cp*si-ci*sp*st)) / (u1);
-	(*G_inv)(1,1) = -(quadrotor.mass*I1*(cp*ci+si*sp*st)) / (u1);
-	(*G_inv)(1,2) = -(quadrotor.mass*I1*(ct*sp)) / (u1);
-	(*G_inv)(1,3) = 0;
-
-	(*G_inv)(2,0) = (quadrotor.mass*I2*(ci*ct)) / (u1);
-	(*G_inv)(2,1) = (quadrotor.mass*I2*(ct*si)) / (u1);
-	(*G_inv)(2,2) = -(quadrotor.mass*I2*(st)) / (u1);
-	(*G_inv)(2,3) = 0;
-
-	(*G_inv)(3,0) = -(quadrotor.mass*I3*(ci*ct*sp)) / (u1*cp);
-	(*G_inv)(3,1) = -(quadrotor.mass*I3*(ct*si*sp)) / (u1*cp);
-	(*G_inv)(3,2) = (quadrotor.mass*I3*(st*sp)) / (u1*cp);
-	(*G_inv)(3,3) = (quadrotor.mass*I3*(ct)) / cp;
-
-	// cout << "<FMPC> get_Ginv_k complete" << endl;
+    (*G_inv)(0,0) = ugv.Iz * ugv.mass / (8 * ugv.a * ugv.Pcf) * (2 * ugv.Pcf / ugv.mass);
+    (*G_inv)(0,1) = 0;
+    (*G_inv)(1,0) = 0;
+    (*G_inv)(1,1) = ugv.Iz * ugv.mass / (8 * ugv.a * ugv.Pcf) * (2 / ugv.mass);
 
 } // void F_MPC_UNCUT::get_Ginv_k(float phi, float theta, float psi, float u1, Eigen::MatrixXf* G_inv)
 
+// Member function of F_MPC_UNCUT object
+// get_theta_vf: computes theta_vf (Tire slip angle from vehicle heading at front axle)
+void F_MPC_UNCUT::get_theta_vf(float vy, float psidot, float vx, float* theta_vf)
+{
+    *theta_vf = atan2(vy + ugv.a * psidot, vx);
+}
+
+// Member function of F_MPC_UNCUT object
+// get_theta_vr: computes theta_vr (Tire slip angle from vehicle heading at rear axle)
+void F_MPC_UNCUT::get_theta_vr(float vy, float psidot, float vx, float* theta_vr)
+{
+    *theta_vr = atan2(vy - ugv.b * psidot, vx);
+}
 
 // Member function of F_MPC_UNCUT object
 // get_f_k: computes f
 // INPUTS: floats representing the roll, pitch, and heading angles,
-// pointer to a matrix the angular velocity, float representing the total thrust
-// pointer to a matrix representing a float, integer representing the time step
 // OUTPUTS: none
-void F_MPC_UNCUT::get_f_k(float phi, float theta, float psi, Eigen::MatrixXf* omega, float u1, float u1_dot, Eigen::MatrixXf* f, int i)
+void F_MPC_UNCUT::get_f_k(float vx, float vy, float psidot, float vx, float Fd, float* f)
 {
+    float theta_vf, theta_vr;
+    get_theta_vf(vy, psidot, vx, &theta_vf);
+    get_theta_vr(vy, psidot, vx, &theta_vr);
 
-	float cp = cos(phi);
-	float ct = cos(theta);
-	float ci = cos(psi);
-	float sp = sin(phi);
-	float st = sin(theta);
-	float si = sin(psi);
-
-	float I1 = quadrotor.inertia_matrix(0,0);
-	float I2 = quadrotor.inertia_matrix(1,1);
-	float I3 = quadrotor.inertia_matrix(2,2);
-
-	float mass = quadrotor.mass;
-
-	float omega1 = (*omega)(0,i);
-	float omega2 = (*omega)(1,i);
-	float omega3 = (*omega)(2,i);
-
-	(*f)(0,0) = u1_dot*(((cp*si - ci*sp*st)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(mass*ct) + ((ci*sp - cp*si*st)*(omega3*cp + omega2*sp))/(mass*ct) + (cp*ci*ct*(omega2*cp - omega3*sp))/mass) + ((omega3*cp + omega2*sp)*((u1_dot*(ci*sp - cp*si*st))/mass - (u1*(sp*si + cp*ci*st)*(omega3*cp + omega2*sp))/(mass*ct) + (u1*(cp*ci + sp*si*st)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(mass*ct) - (u1*cp*ct*si*(omega2*cp - omega3*sp))/mass))/ct - (ci*(omega2*cp - omega3*sp)*(omega2*u1*st - u1_dot*cp*ct + omega1*u1*ct*sp))/mass - ((omega1*ct + omega3*cp*st + omega2*sp*st)*(omega1*u1*sp*si - u1_dot*cp*si + u1_dot*ci*sp*st + omega1*u1*cp*ci*st))/(mass*ct) + (omega2*omega3*u1*(I2 - I3)*(cp*si - ci*sp*st))/(I1*mass) - (omega1*omega3*u1*ci*ct*(I1 - I3))/(I2*mass);
-	(*f)(1,0) = u1_dot*(((sp*si + cp*ci*st)*(omega3*cp + omega2*sp))/(mass*ct) - ((cp*ci + sp*si*st)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(mass*ct) + (cp*ct*si*(omega2*cp - omega3*sp))/mass) + ((omega3*cp + omega2*sp)*((u1_dot*(sp*si + cp*ci*st))/mass + (u1*(ci*sp - cp*si*st)*(omega3*cp + omega2*sp))/(mass*ct) + (u1*(cp*si - ci*sp*st)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(mass*ct) + (u1*cp*ci*ct*(omega2*cp - omega3*sp))/mass))/ct - ((omega1*ct + omega3*cp*st + omega2*sp*st)*(u1_dot*cp*ci + u1_dot*sp*si*st - omega1*u1*ci*sp + omega1*u1*cp*si*st))/(mass*ct) - (si*(omega2*cp - omega3*sp)*(omega2*u1*st - u1_dot*cp*ct + omega1*u1*ct*sp))/mass - (omega2*omega3*u1*(I2 - I3)*(cp*ci + sp*si*st))/(I1*mass) - (omega1*omega3*u1*ct*si*(I1 - I3))/(I2*mass);
-	(*f)(2,0) = (omega1*omega3*u1*st*(I1 - I3))/(I2*mass) - ((u1_dot*sp + omega1*u1*cp)*(omega1*ct + omega3*cp*st + omega2*sp*st))/mass - ((omega2*cp - omega3*sp)*(omega2*u1*ct + u1_dot*cp*st - omega1*u1*sp*st))/mass - (u1_dot*(omega2*st + omega1*ct*sp))/mass - (omega2*omega3*u1*ct*sp*(I2 - I3))/(I1*mass);
-	(*f)(3,0) = ((omega2*cp - omega3*sp)*(omega1*ct + omega3*cp*st + omega2*sp*st))/(ct*ct) + (st*(omega3*cp + omega2*sp)*(omega2*cp - omega3*sp))/(ct*ct) + (omega1*omega2*cp*(I1 - I2))/(I3*ct) - (omega1*omega3*sp*(I1 - I3))/(I2*ct);
-
-	// cout << "<FMPC> get_f_k complete" << endl;
-
-} // void F_MPC_UNCUT::get_f_k(float phi, float theta, float psi, Eigen::MatrixXf* omega, float u1, float u1_dot, Eigen::MatrixXf* f, int i)
+    f[0] = vy * psidot - Fd / ugv.mass;   // longitudinal
+    f[1] = -vx * psidot -  2*ugv.Pcf*theta_vf /m
+           - 2*ugv.Pcr*theta_vr / m;  // yaw
+}
 
 
 rot_dyn_state sys_state;
@@ -1922,10 +2353,10 @@ void F_MPC_UNCUT::sys(const rot_dyn_state &y, rot_dyn_state &ydot, double t)
 
 
 // Member function of F_MPC_UNCUT object
-// compute_roll_pitch_thrust_for_lambda_k_and_g_barrier: computes the roll, pitch, thrust, and g_barrier for a given control policy
+// compute_yaw_vx_for_lambda_k_and_g_barrier: computes the roll, pitch, thrust, and g_barrier for a given control policy
 // INPUTS: pointer to a variable storing the ofl state, pointer to a matrix storing the control policy
 // OUTPUTS: boolean indicating whether or not any element of g_barrier is <= 0
-bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::MatrixXf* chi, Eigen::MatrixXf* lambda)
+bool F_MPC_UNCUT::compute_yaw_vx_for_lambda_k_and_g_barrier(Eigen::MatrixXf* chi, Eigen::MatrixXf* lambda)
 {
 
 	// Double array storing ode rhs, and time
@@ -1933,16 +2364,17 @@ bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::Ma
 
 	// Define eigen matrices to store various values necessary for computing roll, pitch, thrust, and g_barrier
 	Eigen::MatrixXf temp_rhs = Eigen::MatrixXf::Zero(3,1);
-	Eigen::MatrixXf chi_k = Eigen::MatrixXf::Zero(14,mpc_params.T);
-	Eigen::MatrixXf chi_dot_k = Eigen::MatrixXf::Zero(14,mpc_params.T);
-	Eigen::MatrixXf Gamma_k = Eigen::MatrixXf::Zero(3,3);
-	Eigen::MatrixXf omega_k = Eigen::MatrixXf::Zero(3,mpc_params.T);
-	Eigen::MatrixXf omega_k_cross = Eigen::MatrixXf::Zero(3,3);
-	Eigen::MatrixXf G_inv_k = Eigen::MatrixXf::Zero(4,4);
-	Eigen::MatrixXf f_k = Eigen::MatrixXf::Zero(4,1);
-	Eigen::MatrixXf virtual_control_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
-	// Eigen::MatrixXf zeta_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
-	// Eigen::MatrixXf u_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	Eigen::MatrixXf chi_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	Eigen::MatrixXf chi_dot_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	// Eigen::MatrixXf Gamma_k = Eigen::MatrixXf::Zero(3,3);
+	// Eigen::MatrixXf omega_k = Eigen::MatrixXf::Zero(3,mpc_params.T);
+	// Eigen::MatrixXf omega_k_cross = Eigen::MatrixXf::Zero(3,3);
+	Eigen::MatrixXf G_inv_k = Eigen::MatrixXf::Zero(2,2);
+	Eigen::MatrixXf f_k = Eigen::MatrixXf::Zero(2,1);
+	Eigen::MatrixXf virtual_control_k = Eigen::MatrixXf::Zero(2,mpc_params.T);
+	Eigen::MatrixXf lat_k = Eigen::MatrixXf::Zero(2,mpc_params.T); //Lateral states for UGV necessary to compute f_k
+	Eigen::MatrixXf zeta_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
+	Eigen::MatrixXf u_k = Eigen::MatrixXf::Zero(4,mpc_params.T);
 	Eigen::MatrixXf local_u1_k = Eigen::MatrixXf::Zero(mpc_params.T,1);
 	Eigen::MatrixXf local_du1_k = Eigen::MatrixXf::Zero(mpc_params.T,1);
 	Eigen::MatrixXf phi_k = Eigen::MatrixXf::Zero(mpc_params.T,1);
@@ -1954,7 +2386,7 @@ bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::Ma
 
 	// Declare a rot_dyn_state data type to store output from integration
 	rot_dyn_state y = {0.0,0.0,0.0,0.0,0.0,0.0,9.81,0.0};
-
+ 
 	if (abs(y[6]) > 100)
 	{
 		y[6] = 9.81;
@@ -1973,14 +2405,14 @@ bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::Ma
 		{
 
 			// Use information stored in the original state vector
-			chi_k.block(0,0,12,1) = quadrotor.X0.block(0,0,12,1);
+			chi_k.block(0,0,12,1) = ugv.X0.block(0,0,12,1);
 			phi_k(i,0) = pose[12];
 			theta_k(i,0) = pose[13];
 			psi_k(i,0) = pose[14];
 			Gamma_k = Gamma;
 			omega_k.col(i) = omega;
-			local_u1_k(i,0) = quadrotor.u1_k(i,0);
-			quadrotor.u1_k(i,0) = y[6];
+			local_u1_k(i,0) = ugv.u1_k(i,0);
+			ugv.u1_k(i,0) = y[6];
 			local_du1_k(i,0) = y[7];
 
 			y[0] = phi_k(i,0);
@@ -2004,7 +2436,7 @@ bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::Ma
 			omega_k(1,i) = y[4];
 			omega_k(2,i) = y[5];
 			local_u1_k(i,0) = y[6];
-			quadrotor.u1_k(i,0) = y[6];
+			ugv.u1_k(i,0) = y[6];
 			local_du1_k(i,0) = y[7];
 			compute_Gamma(phi_k(i,0),theta_k(i,0),psi_k(i,0),&Gamma_k);
 
@@ -2027,39 +2459,43 @@ bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::Ma
 		}
 
 		// Call the hat operator to compute omega_cross
-		hat_operator(&omega_k, &omega_k_cross, i);
+		// hat_operator(&omega_k, &omega_k_cross, i);
 		
 		// Get the G_inv matrix
-		get_Ginv_k(phi_k(i,0),theta_k(i,0),psi_k(i,0),quadrotor.u1_k(i,0),&G_inv_k);
+		// get_Ginv_k(phi_k(i,0),theta_k(i,0),psi_k(i,0),ugv.u1_k(i,0),&G_inv_k);
+		get_Ginv_k(&G_inv_k);
 
 		// Get the f vector
-		get_f_k(phi_k(i,0),theta_k(i,0),psi_k(i,0),&omega_k,quadrotor.u1_k(i,0),quadrotor.u1_dot_k(i,0),&f_k,i);
+		// get_f_k(phi_k(i,0),theta_k(i,0),psi_k(i,0),&omega_k,ugv.u1_k(i,0),ugv.u1_dot_k(i,0),&f_k,i);
+		get_f_k(phi_k(i,0),theta_k(i,0),psi_k(i,0),&omega_k,ugv.u1_k(i,0),ugv.u1_dot_k(i,0),&f_k,i);
 
 		// Compute the RHS of the output feedback linearized dynamical system
-		chi_dot_k.col(i) = quadrotor.eig_A*chi_k.col(i) + quadrotor.eig_B*(*lambda).col(i);
+		chi_dot_k.col(i) = ugv.eig_A*chi_k.col(i) + ugv.eig_B*(*lambda).col(i);
 
 		// Get the virtual control, so it is easier to compute the actual control
-		virtual_control_k(0,i) = chi_dot_k(9,i);
-		virtual_control_k(1,i) = chi_dot_k(10,i);
-		virtual_control_k(2,i) = chi_dot_k(11,i);
-		virtual_control_k(3,i) = chi_dot_k(13,i);
+		// virtual_control_k(0,i) = chi_dot_k(9,i);
+		// virtual_control_k(1,i) = chi_dot_k(10,i);
+		// virtual_control_k(2,i) = chi_dot_k(11,i);
+		// virtual_control_k(3,i) = chi_dot_k(13,i);
+		virtual_control_k(0,i) = chi_dot_k(1,i);   // ẍ = λx
+		virtual_control_k(1,i) = chi_dot_k(3,i);   // ψ̈ = λψ
 
 		// Compute the actual control input
 		zeta_k.col(i) = G_inv_k*(-f_k + virtual_control_k.col(i));
 
 		// Compute the rhs of the rotational dynamic equations
-		temp_rhs = quadrotor.inertia_matrix_inv*(zeta_k.block(1,i,3,1) - omega_k_cross*quadrotor.inertia_matrix*omega_k.col(i));
+		temp_rhs = ugv.inertia_matrix_inv*(zeta_k.block(1,i,3,1) - omega_k_cross*ugv.inertia_matrix*omega_k.col(i)); //Where does this come into play for UGV?
 		
-		for (unsigned short int j = 3; j < 6; j++)
+		for (unsigned short int j = 3; j < 6; j++) // Swap for UGV states
 		{
 			ode_rhs[j] = temp_rhs(j-3,0);
 		}
 
 		// Two states of the integrand are reserved for the total thrust dynamics
-		ode_rhs[6] = local_du1_k(i,0);
-		ode_rhs[7] = zeta_k(0,i);
+		// ode_rhs[6] = local_du1_k(i,0);
+		// ode_rhs[7] = zeta_k(0,i);
 		
-		for (unsigned short int j = 0; j < rot_dyn_states; j++)
+		for (unsigned short int j = 0; j < rot_dyn_states; j++) //UGV states are different, so we need to compute the full rhs for all states
 		{
 			sys_state[j] = ode_rhs[j];
 		}
@@ -2071,7 +2507,7 @@ bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::Ma
 		rk4.do_step(sys, y, t, mpc_params.delta_t);
 
 		// compute the control input
-		// u_k(0,i) = quadrotor.u1_k(i,0);
+		// u_k(0,i) = ugv.u1_k(i,0);
 		u_k(0,i) = y[6];
 		u_k(1,i) = zeta_k(1,i);
 		u_k(2,i) = zeta_k(2,i);
@@ -2081,11 +2517,11 @@ bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::Ma
 		ddu1_k(0,i) = (*lambda)(3,i);
 
 		// Compute the total thrust
-		quadrotor.T_k.col(i) = -quadrotor.M*u_k.col(i);
-		quadrotor.T_k_min.col(i) = -quadrotor.M*u_k.col(i) - Eigen::MatrixXf::Ones(4,1)*quadrotor.T_min;
-		quadrotor.T_k_max.col(i) = Eigen::MatrixXf::Ones(4,1)*quadrotor.T_max - quadrotor.M*u_k.col(i);
+		ugv.T_k.col(i) = -ugv.M*u_k.col(i);
+		ugv.T_k_min.col(i) = -ugv.M*u_k.col(i) - Eigen::MatrixXf::Ones(4,1)*ugv.T_min;
+		ugv.T_k_max.col(i) = Eigen::MatrixXf::Ones(4,1)*ugv.T_max - ugv.M*u_k.col(i);
 
-		g_barrier(i,0) = (quadrotor.phi_max*quadrotor.phi_max - phi_k(i,0)*phi_k(i,0)) * (quadrotor.theta_max*quadrotor.theta_max - theta_k(i,0)*theta_k(i,0) ) * quadrotor.T_k_min.col(i).prod()*quadrotor.T_k_max.col(i).prod(); 
+		g_barrier(i,0) = (ugv.phi_max*ugv.phi_max - phi_k(i,0)*phi_k(i,0)) * (ugv.theta_max*ugv.theta_max - theta_k(i,0)*theta_k(i,0) ) * ugv.T_k_min.col(i).prod()*ugv.T_k_max.col(i).prod(); 
 
 		if (g_barrier(i,0) <= 0)
 		{
@@ -2095,19 +2531,19 @@ bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::Ma
 
 	} // for (unsigned short int i = 0; i < mpc_params.T; i++)
 
-	quadrotor.eig_phi = phi_k;	
-	quadrotor.eig_theta = theta_k;
+	ugv.eig_phi = phi_k;	
+	ugv.eig_theta = theta_k;
 	lambda_k = virtual_control_k;
 
 	// cout << "phi_k " << phi_k << endl;
 	// cout << "theta_k " << theta_k << endl;
-	// cout << "quadrotor.T_k: " << quadrotor.T_k << endl;
+	// cout << "ugv.T_k: " << ugv.T_k << endl;
 
-	cout << "<FMPC> compute_roll_pitch_thrust_for_lambda_k_and_g_barrier complete" << endl;
+	cout << "<FMPC> compute_yaw_vx_for_lambda_k_and_g_barrier complete" << endl;
 
 	return false;
 
-} // bool F_MPC_UNCUT::compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::MatrixXf* chi, Eigen::MatrixXf* lambda)
+} // bool F_MPC_UNCUT::compute_yaw_vx_for_lambda_k_and_g_barrier(Eigen::MatrixXf* chi, Eigen::MatrixXf* lambda)
 
 
 
@@ -2120,16 +2556,16 @@ void F_MPC_UNCUT::compute_u1_u1dot(Eigen::MatrixXf* eig_U)
 {
 
 	// Compute \delta_k, see equation 6 of Ch3. Marshall et. al. 
-	quadrotor.delta_k(0,0) = quadrotor.u1_k(0,0);
-	quadrotor.delta_k(1,0) = quadrotor.u1_dot_k(0,0);
+	ugv.delta_k(0,0) = ugv.u1_k(0,0);
+	ugv.delta_k(1,0) = ugv.u1_dot_k(0,0);
 
 	// Iterate over the number of time steps (minus 1)
 	for (int i = 0; i < mpc_params.T; i++)
 	{
 		
-		quadrotor.delta_k.block(0,i,2,1) = mpc_params.A_u1*quadrotor.delta_k.block(0,i,2,1) + mpc_params.B_u1*(*eig_U)(0,i);
-		quadrotor.u1_k(i,0) = quadrotor.delta_k(0,i); 
-		quadrotor.u1_dot_k(i,0) = quadrotor.delta_k(1,i); 
+		ugv.delta_k.block(0,i,2,1) = mpc_params.A_u1*ugv.delta_k.block(0,i,2,1) + mpc_params.B_u1*(*eig_U)(0,i);
+		ugv.u1_k(i,0) = ugv.delta_k(0,i); 
+		ugv.u1_dot_k(i,0) = ugv.delta_k(1,i); 
 
 	} // for (int i = 0; i < mpc_params.T-1; i++)
 
@@ -2166,7 +2602,7 @@ void F_MPC_UNCUT::compute_box_constraints(int segment_number, int goalStride)
 	float dp1,dp2,dp3,dp4;
 
 	// Define Eigen::MatrixXf to store the parameters for the box constraints (a,b,c,d as in a plane equation)
-	Eigen::MatrixXf temp_Fx = Eigen::MatrixXf::Zero(8,quadrotor.n); // Stores ai, bi, ci in the first three columns, zeros in the remaining columns
+	Eigen::MatrixXf temp_Fx = Eigen::MatrixXf::Zero(8,ugv.n); // Stores ai, bi, ci in the first three columns, zeros in the remaining columns
 	Eigen::MatrixXf temp_fx = Eigen::MatrixXf::Zero(8,1);			// Store di in the ith row
 
 	// If the goal stride does not exceed the length of the path
@@ -2235,8 +2671,8 @@ void F_MPC_UNCUT::compute_box_constraints(int segment_number, int goalStride)
 	temp_Fx.block(1,0,1,3) = -per.transpose();
 	temp_Fx.block(2,0,1,3) = per.transpose();
 	temp_Fx.block(3,0,1,3) = n.transpose();
-	temp_Fx.block(4,0,2,14) = quadrotor.eig_Fpsi_hard;
-	temp_Fx.block(6,0,2,14) = quadrotor.eig_Fz_hard_ceiling;
+	temp_Fx.block(4,0,2,14) = ugv.eig_Fpsi_hard;
+	temp_Fx.block(6,0,2,14) = ugv.eig_Fz_hard_ceiling;
 
 	// Set the vector storing the offset coefficients
 	temp_fx(0,0) = dp1;
@@ -2244,20 +2680,20 @@ void F_MPC_UNCUT::compute_box_constraints(int segment_number, int goalStride)
 	temp_fx(2,0) = dp3;
 	temp_fx(3,0) = dp4;
 	// ... and the other constraints
-	temp_fx.block(4,0,2,1) = quadrotor.eig_psi_hard_bounds;
-	temp_fx.block(6,0,2,1) = quadrotor.eig_z_hard_bounds;
+	temp_fx.block(4,0,2,1) = ugv.eig_psi_hard_bounds;
+	temp_fx.block(6,0,2,1) = ugv.eig_z_hard_bounds;
 
 	// Set the hard constraint matrix
-	quadrotor.eig_Fx_hard.block(0,0,8,quadrotor.n) = temp_Fx;
+	ugv.eig_Fx_hard.block(0,0,8,ugv.n) = temp_Fx;
 
 	// Store the hard constraint matrix in P
-	mpc_params.P[segment_number].block(0,0,8,quadrotor.n) = temp_Fx;
+	mpc_params.P[segment_number].block(0,0,8,ugv.n) = temp_Fx;
 
 	// Iterate over the number of time steps
 	for (int i = 0; i < mpc_params.T; i++)
 	{		
 
-		quadrotor.eig_x_hard_bounds.block(0,i,8,1) = temp_fx;
+		ugv.eig_x_hard_bounds.block(0,i,8,1) = temp_fx;
 		mpc_params.h[segment_number].block(0,i,8,1) = temp_fx;
 
 	} // for (int i = 0; i < mpc_params.T; i++)
@@ -2290,25 +2726,25 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 
 	// cout << "(*eig_X)(12,0): " << (*eig_X)(12,0) << endl;
 
-	quadrotor.eig_psi_hard_bounds(0) = (float) quadrotor.half_camera_FOV + goal(3,0);
-	quadrotor.eig_psi_hard_bounds(1) = (float) quadrotor.half_camera_FOV - goal(3,0);
+	ugv.eig_psi_hard_bounds(0) = (float) ugv.half_camera_FOV + goal(3,0);
+	ugv.eig_psi_hard_bounds(1) = (float) ugv.half_camera_FOV - goal(3,0);
 	
-	// get_sign(sign_of_heading_constraint,quadrotor.eig_psi_hard_bounds(0));
-	// int turns = floor(quadrotor.eig_psi_hard_bounds(0)/((sign_of_heading_constraint)*M_PI));
+	// get_sign(sign_of_heading_constraint,ugv.eig_psi_hard_bounds(0));
+	// int turns = floor(ugv.eig_psi_hard_bounds(0)/((sign_of_heading_constraint)*M_PI));
 	// if (turns > 0)
 	// {
-	// 	quadrotor.eig_psi_hard_bounds(0) = quadrotor.eig_psi_hard_bounds(0) - sign_of_heading_constraint*M_PI*turns;
+	// 	ugv.eig_psi_hard_bounds(0) = ugv.eig_psi_hard_bounds(0) - sign_of_heading_constraint*M_PI*turns;
 	// }
 
-	// get_sign(sign_of_heading_constraint,quadrotor.eig_psi_hard_bounds(1));
-	// turns = floor(quadrotor.eig_psi_hard_bounds(1)/((sign_of_heading_constraint)*M_PI));
+	// get_sign(sign_of_heading_constraint,ugv.eig_psi_hard_bounds(1));
+	// turns = floor(ugv.eig_psi_hard_bounds(1)/((sign_of_heading_constraint)*M_PI));
 	// if (turns > 0)
 	// {
-	// 	quadrotor.eig_psi_hard_bounds(1) = quadrotor.eig_psi_hard_bounds(1) - sign_of_heading_constraint*M_PI*turns;
+	// 	ugv.eig_psi_hard_bounds(1) = ugv.eig_psi_hard_bounds(1) - sign_of_heading_constraint*M_PI*turns;
 	// }
 
-	// cout << "eig_psi_hard_bounds: " << quadrotor.eig_psi_hard_bounds << endl;
-	// cout << "x0: " << quadrotor.X0.block(0,0,3,1) << endl;
+	// cout << "eig_psi_hard_bounds: " << ugv.eig_psi_hard_bounds << endl;
+	// cout << "x0: " << ugv.X0.block(0,0,3,1) << endl;
 	// cout << "goal" << goal.block(0,0,3,1) << endl;
 	// cout << "goal heading: " << goal(3,0) << endl;
 
@@ -2318,127 +2754,127 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 	{
 		// Losen the constraints if the path requires us to turn around
 		// If the heading angle initially violates the hard constraints
-		if ( quadrotor.X0(12) > quadrotor.eig_psi_hard_bounds(0) || -quadrotor.X0(12) > quadrotor.eig_psi_hard_bounds(1))
+		if ( ugv.X0(12) > ugv.eig_psi_hard_bounds(0) || -ugv.X0(12) > ugv.eig_psi_hard_bounds(1))
 		{
-			quadrotor.eig_psi_hard_bounds(0) = 10*3.1415;
-			quadrotor.eig_psi_hard_bounds(1) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(0) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(1) = 10*3.1415;
 		}
 
 		// Floats capturing the distance between the UAV and the goal point in the horizontal plane
 		float xdiff, ydiff;
 
-		xdiff = goal(0,0) - quadrotor.X0(0);
-		ydiff = goal(1,0) - quadrotor.X0(1);
+		xdiff = goal(0,0) - ugv.X0(0);
+		ydiff = goal(1,0) - ugv.X0(1);
 
 		// If the distance between the UAV and the goal is small 
 		if ( sqrt( xdiff*xdiff + ydiff*ydiff ) < 0.1 )
 		{
 			// Loosen the constraints
-			quadrotor.eig_psi_hard_bounds(0) = 10*3.1415;
-			quadrotor.eig_psi_hard_bounds(1) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(0) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(1) = 10*3.1415;
 		}
 
 		// Four for the heading and altitude constraints, 28 for the initial boundary conditions
-		quadrotor.num_hard_x = collisionConstraints.rows() + 4 + 28;
-		int num_obstacle_constraints = quadrotor.num_hard_x - 4 - 28;
+		ugv.num_hard_x = collisionConstraints.rows() + 4 + 28;
+		int num_obstacle_constraints = ugv.num_hard_x - 4 - 28;
 
 		// Set new float arrays to store constraint data
-		bomt.FxX_array = new float[quadrotor.num_hard_x*mpc_params.T];
-		bomt.dx_array = new float[quadrotor.num_hard_x*mpc_params.T];
+		bomt.FxX_array = new float[ugv.num_hard_x*mpc_params.T];
+		bomt.dx_array = new float[ugv.num_hard_x*mpc_params.T];
 
 		// Set the values of the elements stored in the containers above to zero
-		memset(bomt.FxX_array,0,quadrotor.num_hard_x*mpc_params.T*sizeof(*bomt.FxX_array));
-		memset(bomt.dx_array,0,quadrotor.num_hard_x*mpc_params.T*sizeof(*bomt.dx_array));
+		memset(bomt.FxX_array,0,ugv.num_hard_x*mpc_params.T*sizeof(*bomt.FxX_array));
+		memset(bomt.dx_array,0,ugv.num_hard_x*mpc_params.T*sizeof(*bomt.dx_array));
 
 		// Allocate memory for the Eigen::Matrix versions
-		bomt.FxtildeX = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.FxX_array, quadrotor.num_hard_x, mpc_params.T);
-		bomt.dx = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.dx_array, quadrotor.num_hard_x, mpc_params.T);	
+		bomt.FxtildeX = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.FxX_array, ugv.num_hard_x, mpc_params.T);
+		bomt.dx = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.dx_array, ugv.num_hard_x, mpc_params.T);	
 
 		// Set the size of the constraint matrix Fx and fx
-		quadrotor.eig_Fx_hard = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,quadrotor.n);
-		quadrotor.eig_x_hard_bounds = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,mpc_params.T);
+		ugv.eig_Fx_hard = Eigen::MatrixXf::Zero(ugv.num_hard_x,ugv.n);
+		ugv.eig_x_hard_bounds = Eigen::MatrixXf::Zero(ugv.num_hard_x,mpc_params.T);
 			
 		// Total number of constraints for MPC problem
-		mpc_params.l = quadrotor.eig_x_hard_bounds.rows() + quadrotor.eig_u_hard_bounds.size(); 
+		mpc_params.l = ugv.eig_x_hard_bounds.rows() + ugv.eig_u_hard_bounds.size(); 
 
 		// Iterate over the number of collision avoidance constraints
 		for (unsigned short int i = 0; i < num_obstacle_constraints; i++)
 		{
 			// Set the coefficient of the collision avoidance constraints
-			quadrotor.eig_Fx_hard(i,0) = collisionConstraints(i,0);
-			quadrotor.eig_Fx_hard(i,1) = collisionConstraints(i,1);
-			quadrotor.eig_Fx_hard(i,2) = collisionConstraints(i,2);
+			ugv.eig_Fx_hard(i,0) = collisionConstraints(i,0);
+			ugv.eig_Fx_hard(i,1) = collisionConstraints(i,1);
+			ugv.eig_Fx_hard(i,2) = collisionConstraints(i,2);
 		
 			// Iterate over the number of constraints
 			for (unsigned short int j = 0; j < mpc_params.T; j++)
 			{
 				
-				quadrotor.eig_x_hard_bounds(i,j) = collisionConstraints(i,3);
+				ugv.eig_x_hard_bounds(i,j) = collisionConstraints(i,3);
 
 			} // for (unsigned short int j = 0; j < mpc_params.T; j++)
 
 		} // for (unsigned short int i = 0; i < num_obstacle_constraints; i++)			
 
 		// Set the other constraints
-		quadrotor.eig_Fx_hard.block(num_obstacle_constraints,0,2,14) = quadrotor.eig_Fpsi_hard;												// Heading constraints
-		quadrotor.eig_Fx_hard.block(num_obstacle_constraints + 2,0,2,14) = quadrotor.eig_Fz_hard_ceiling;		 							// Floor and ceiling constraints
-		quadrotor.eig_Fx_hard.block(num_obstacle_constraints + 4,0,2*quadrotor.n,quadrotor.n) = quadrotor.eig_Fx_hard_boundary_conditions;	// Boundary conditions
+		ugv.eig_Fx_hard.block(num_obstacle_constraints,0,2,14) = ugv.eig_Fpsi_hard;												// Heading constraints
+		ugv.eig_Fx_hard.block(num_obstacle_constraints + 2,0,2,14) = ugv.eig_Fz_hard_ceiling;		 							// Floor and ceiling constraints
+		ugv.eig_Fx_hard.block(num_obstacle_constraints + 4,0,2*ugv.n,ugv.n) = ugv.eig_Fx_hard_boundary_conditions;	// Boundary conditions
 		
 		// Iterate over the number of time steps
 		for (unsigned short int j = 0; j < mpc_params.T; j++)
 		{
 
 			// Iterate over the number of states
-			for (unsigned short int i = 0; i < quadrotor.n; i++)
+			for (unsigned short int i = 0; i < ugv.n; i++)
 			{
 				// if (j == 0 && i < 3)
 				// {	
-				// 	quadrotor.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
-				// 	quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
 				// }
 				// else if (j == 0 && i == 12)
 				// {	
-				// 	quadrotor.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
-				// 	quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
 				// }		
 				// else
 				// {
-					quadrotor.eig_x_hard_boundary_conditions(i,j) = 1000; // Aka big-M constraint
-					quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_hard_boundary_conditions(i,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = 1000; // Aka big-M constraint
 				// }
 
-			} // for (unsigned short int i = 0; i < quadrotor.n; i++)
+			} // for (unsigned short int i = 0; i < ugv.n; i++)
 			
 			// Set the heading angle constraints
 			// if (j == mpc_params.T-1)
 			// {
-				quadrotor.eig_x_hard_bounds.block(num_obstacle_constraints,j,2,1) = quadrotor.eig_psi_hard_bounds;
+				ugv.eig_x_hard_bounds.block(num_obstacle_constraints,j,2,1) = ugv.eig_psi_hard_bounds;
 			// }
 			// else
 			// {
-				// quadrotor.eig_x_hard_bounds.block(num_obstacle_constraints,j,2,1) = 3.14*Eigen::MatrixXf::Ones(2,1);
+				// ugv.eig_x_hard_bounds.block(num_obstacle_constraints,j,2,1) = 3.14*Eigen::MatrixXf::Ones(2,1);
 			// }
 
-			quadrotor.eig_x_hard_bounds.block(num_obstacle_constraints + 2,j,2,1) = quadrotor.eig_z_hard_bounds;
-			quadrotor.eig_x_hard_bounds.block(num_obstacle_constraints + 4,j,2*quadrotor.n,1) = quadrotor.eig_x_hard_boundary_conditions.col(j);
+			ugv.eig_x_hard_bounds.block(num_obstacle_constraints + 2,j,2,1) = ugv.eig_z_hard_bounds;
+			ugv.eig_x_hard_bounds.block(num_obstacle_constraints + 4,j,2*ugv.n,1) = ugv.eig_x_hard_boundary_conditions.col(j);
 		}
 
 		// Set the size of the P matrix and its elements to zero
-		mpc_params.P[segment_number] = Eigen::MatrixXf::Zero(mpc_params.l, quadrotor.n+quadrotor.m);
+		mpc_params.P[segment_number] = Eigen::MatrixXf::Zero(mpc_params.l, ugv.n+ugv.m);
 
 		// Set the size of the h matrix and its elements to zero 
 		mpc_params.h[segment_number] = Eigen::MatrixXf::Zero(mpc_params.l, mpc_params.T);
 
 		// Fill the P and h matrices
-		mpc_params.P[segment_number].block(0,0,quadrotor.num_hard_x,quadrotor.n) = quadrotor.eig_Fx_hard;
-		mpc_params.P[segment_number].block(quadrotor.num_hard_x,quadrotor.n,quadrotor.num_hard_u,quadrotor.m) = quadrotor.eig_Fu_hard;
-		mpc_params.h[segment_number].block(0,0,quadrotor.num_hard_x,mpc_params.T) = quadrotor.eig_x_hard_bounds;
+		mpc_params.P[segment_number].block(0,0,ugv.num_hard_x,ugv.n) = ugv.eig_Fx_hard;
+		mpc_params.P[segment_number].block(ugv.num_hard_x,ugv.n,ugv.num_hard_u,ugv.m) = ugv.eig_Fu_hard;
+		mpc_params.h[segment_number].block(0,0,ugv.num_hard_x,mpc_params.T) = ugv.eig_x_hard_bounds;
 		
 		// Iterate over the number of time steps
 		for (unsigned short int j = 0; j < mpc_params.T; j++)
 		{
 			
-			mpc_params.h[segment_number].block(quadrotor.num_hard_x,j,quadrotor.num_hard_u,1) = quadrotor.eig_u_hard_bounds;
+			mpc_params.h[segment_number].block(ugv.num_hard_x,j,ugv.num_hard_u,1) = ugv.eig_u_hard_bounds;
 
 		} // for (unsigned short int j = 0; j < mpc_params.T; j++)
 
@@ -2450,32 +2886,32 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		// if (validates_collision_constraints())
 		// {
 		// 	cout << "goal: " << goal << " validates constraint set" << endl;
-		// 	quadrotor.num_hard_x = collisionConstraints.rows() + 4 + 28;
+		// 	ugv.num_hard_x = collisionConstraints.rows() + 4 + 28;
 		// }
 		// else
 		// State constraints
 		// 8 for box constraints
-		quadrotor.num_hard_x = 8 + 28;
+		ugv.num_hard_x = 8 + 28;
 
 		// Set the size of the hard constraints and bounds. Their elements are set to zero
-		quadrotor.eig_Fx_hard = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,quadrotor.n);
-		quadrotor.eig_x_hard_bounds = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,mpc_params.T);
+		ugv.eig_Fx_hard = Eigen::MatrixXf::Zero(ugv.num_hard_x,ugv.n);
+		ugv.eig_x_hard_bounds = Eigen::MatrixXf::Zero(ugv.num_hard_x,mpc_params.T);
 
 		// New float arrays to store fmpc data
-		bomt.FxX_array = new float[quadrotor.num_hard_x*mpc_params.T];
-		bomt.dx_array = new float[quadrotor.num_hard_x*mpc_params.T];
+		bomt.FxX_array = new float[ugv.num_hard_x*mpc_params.T];
+		bomt.dx_array = new float[ugv.num_hard_x*mpc_params.T];
 
 		// Set the elements of the containers above to zero
-		memset(bomt.FxX_array, 0, quadrotor.num_hard_x*mpc_params.T*sizeof(*bomt.FxX_array));
-		memset(bomt.dx_array, 0, quadrotor.num_hard_x*mpc_params.T*sizeof(*bomt.dx_array));
+		memset(bomt.FxX_array, 0, ugv.num_hard_x*mpc_params.T*sizeof(*bomt.FxX_array));
+		memset(bomt.dx_array, 0, ugv.num_hard_x*mpc_params.T*sizeof(*bomt.dx_array));
 
 		// Map the containers to their eigen counterparts
-		bomt.FxtildeX = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.FxX_array, quadrotor.num_hard_x, mpc_params.T);
-		bomt.dx = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.dx_array, quadrotor.num_hard_x, mpc_params.T);
+		bomt.FxtildeX = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.FxX_array, ugv.num_hard_x, mpc_params.T);
+		bomt.dx = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.dx_array, ugv.num_hard_x, mpc_params.T);
 
 		// Set the size of P and h, as well as their elements to zero
-		mpc_params.P[segment_number] = Eigen::MatrixXf::Zero(quadrotor.num_hard_x+quadrotor.num_hard_u, quadrotor.n+quadrotor.m);
-		mpc_params.h[segment_number] = Eigen::MatrixXf::Zero(quadrotor.num_hard_x+quadrotor.num_hard_u, mpc_params.T);
+		mpc_params.P[segment_number] = Eigen::MatrixXf::Zero(ugv.num_hard_x+ugv.num_hard_u, ugv.n+ugv.m);
+		mpc_params.h[segment_number] = Eigen::MatrixXf::Zero(ugv.num_hard_x+ugv.num_hard_u, mpc_params.T);
 
 		// ****************************************************** //
 		// This block loosens constraints on heading angle if the //
@@ -2484,13 +2920,13 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 
 
 		// If the current heading is outside of the constraint set (before planning), loosen the heading constraints
-		if ( (*eig_X)(12,0) > quadrotor.eig_psi_hard_bounds(0) || -(*eig_X)(12,0) > quadrotor.eig_psi_hard_bounds(1))
+		if ( (*eig_X)(12,0) > ugv.eig_psi_hard_bounds(0) || -(*eig_X)(12,0) > ugv.eig_psi_hard_bounds(1))
 		{
 			
-			quadrotor.eig_psi_hard_bounds(0) = 10*3.1415;
-			quadrotor.eig_psi_hard_bounds(1) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(0) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(1) = 10*3.1415;
 
-		} // if ( (*eig_X)(12,0) >= quadrotor.eig_psi_hard_bounds(0) || -(*eig_X)(12,0) >= quadrotor.eig_psi_hard_bounds(1))
+		} // if ( (*eig_X)(12,0) >= ugv.eig_psi_hard_bounds(0) || -(*eig_X)(12,0) >= ugv.eig_psi_hard_bounds(1))
 
 		float xdiff, ydiff;
 
@@ -2499,63 +2935,63 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 
 		if ( sqrt( xdiff*xdiff + ydiff*ydiff ) < 0.1 )
 		{
-			quadrotor.eig_psi_hard_bounds(0) = 10*3.1415;
-			quadrotor.eig_psi_hard_bounds(1) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(0) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(1) = 10*3.1415;
 		}
 
 		// Compute box constraints for the segments occuring later in the planned trajectory
 		compute_box_constraints(segment_number, goalStride);
 
 		// Set the orientation of boundary conditions
-		quadrotor.eig_Fx_hard.block(8,0,2*quadrotor.n,quadrotor.n) = quadrotor.eig_Fx_hard_boundary_conditions;	
+		ugv.eig_Fx_hard.block(8,0,2*ugv.n,ugv.n) = ugv.eig_Fx_hard_boundary_conditions;	
 
 		// Iterate over the number of time steps
 		for (unsigned short int j = 0; j < mpc_params.T; j++)
 		{
 
 			// Iterate over the number of states
-			for (unsigned short int i = 0; i < quadrotor.n; i++)
+			for (unsigned short int i = 0; i < ugv.n; i++)
 			{
 
 				// else if (j == 0 && i == 12)
 				// {	
-				// 	quadrotor.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
-				// 	quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
 				// }	
 				// if (j == 0)
 				// {													// Position		// Offset which expands if planning fails  // Offset introduced as a function of velocity
-				// 	quadrotor.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
-				// 	quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
 				// }
 				// else 
 				// {
-					quadrotor.eig_x_hard_boundary_conditions(i,j) = 1000; // Aka big-M constraint
-					quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_hard_boundary_conditions(i,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = 1000; // Aka big-M constraint
 				// }
 				// else if (j == 0 && i > 5 && i < 9)
 				// {
-				// 	quadrotor.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
-				// 	quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
 				// }
 
 
-			} // for (int i = 0; i < quadrotor.n; i++)
+			} // for (int i = 0; i < ugv.n; i++)
 			
 			// Set the boundary conditions
-			quadrotor.eig_x_hard_bounds.block(8,j,2*quadrotor.n,1) = quadrotor.eig_x_hard_boundary_conditions.col(j);
+			ugv.eig_x_hard_bounds.block(8,j,2*ugv.n,1) = ugv.eig_x_hard_boundary_conditions.col(j);
 
 		} // for (unsigned short int j = 0; j < mpc_params.T; j++)
 
 		// Control constraints
-		mpc_params.P[segment_number].block(8,0,2*quadrotor.n,quadrotor.n) = quadrotor.eig_Fx_hard_boundary_conditions;
-		mpc_params.P[segment_number].block(quadrotor.num_hard_x,quadrotor.n,quadrotor.num_hard_u,quadrotor.m) = quadrotor.eig_Fu_hard;
+		mpc_params.P[segment_number].block(8,0,2*ugv.n,ugv.n) = ugv.eig_Fx_hard_boundary_conditions;
+		mpc_params.P[segment_number].block(ugv.num_hard_x,ugv.n,ugv.num_hard_u,ugv.m) = ugv.eig_Fu_hard;
 		
 		// Iterate over the number of time steps
 		for (unsigned short int j = 0; j < mpc_params.T; j++)
 		{
 			
-			mpc_params.h[segment_number].block(8,j,2*quadrotor.n,1) = quadrotor.eig_x_hard_boundary_conditions.col(j);
-			mpc_params.h[segment_number].block(quadrotor.num_hard_x,j,quadrotor.num_hard_u,1) = quadrotor.eig_u_hard_bounds;
+			mpc_params.h[segment_number].block(8,j,2*ugv.n,1) = ugv.eig_x_hard_boundary_conditions.col(j);
+			mpc_params.h[segment_number].block(ugv.num_hard_x,j,ugv.num_hard_u,1) = ugv.eig_u_hard_bounds;
 
 		} // for (unsigned short int j = 0; j < mpc_params.T; j++)
 
@@ -2564,36 +3000,36 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 	{
 		// State constraints
 		// 8 for box constraints
-		quadrotor.num_hard_x = 8 + 28;
+		ugv.num_hard_x = 8 + 28;
 
 		// Set the size of the hard constraints and bounds. Their elements are set to zero
-		quadrotor.eig_Fx_hard = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,quadrotor.n);
-		quadrotor.eig_x_hard_bounds = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,mpc_params.T);
+		ugv.eig_Fx_hard = Eigen::MatrixXf::Zero(ugv.num_hard_x,ugv.n);
+		ugv.eig_x_hard_bounds = Eigen::MatrixXf::Zero(ugv.num_hard_x,mpc_params.T);
 
 		// New float arrays to store fmpc data
-		bomt.FxX_array = new float[quadrotor.num_hard_x*mpc_params.T];
-		bomt.dx_array = new float[quadrotor.num_hard_x*mpc_params.T];
+		bomt.FxX_array = new float[ugv.num_hard_x*mpc_params.T];
+		bomt.dx_array = new float[ugv.num_hard_x*mpc_params.T];
 
 		// Set the elements of the containers above to zero
-		memset(bomt.FxX_array, 0, quadrotor.num_hard_x*mpc_params.T*sizeof(*bomt.FxX_array));
-		memset(bomt.dx_array, 0, quadrotor.num_hard_x*mpc_params.T*sizeof(*bomt.dx_array));
+		memset(bomt.FxX_array, 0, ugv.num_hard_x*mpc_params.T*sizeof(*bomt.FxX_array));
+		memset(bomt.dx_array, 0, ugv.num_hard_x*mpc_params.T*sizeof(*bomt.dx_array));
 
 		// Map the containers to their eigen counterparts
-		bomt.FxtildeX = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.FxX_array, quadrotor.num_hard_x, mpc_params.T);
-		bomt.dx = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.dx_array, quadrotor.num_hard_x, mpc_params.T);
+		bomt.FxtildeX = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.FxX_array, ugv.num_hard_x, mpc_params.T);
+		bomt.dx = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.dx_array, ugv.num_hard_x, mpc_params.T);
 
 		// Set the size of P and h, as well as their elements to zero
-		mpc_params.P[segment_number] = Eigen::MatrixXf::Zero(quadrotor.num_hard_x+quadrotor.num_hard_u, quadrotor.n+quadrotor.m);
-		mpc_params.h[segment_number] = Eigen::MatrixXf::Zero(quadrotor.num_hard_x+quadrotor.num_hard_u, mpc_params.T);
+		mpc_params.P[segment_number] = Eigen::MatrixXf::Zero(ugv.num_hard_x+ugv.num_hard_u, ugv.n+ugv.m);
+		mpc_params.h[segment_number] = Eigen::MatrixXf::Zero(ugv.num_hard_x+ugv.num_hard_u, mpc_params.T);
 
 		// If the path requires us to turn around, loosen the heading constraints
-		if ( (*eig_X)(12,0) >= quadrotor.eig_psi_hard_bounds(0) || -(*eig_X)(12,0) >= quadrotor.eig_psi_hard_bounds(1))
+		if ( (*eig_X)(12,0) >= ugv.eig_psi_hard_bounds(0) || -(*eig_X)(12,0) >= ugv.eig_psi_hard_bounds(1))
 		{
 
-			quadrotor.eig_psi_hard_bounds(0) = 10*3.1415;
-			quadrotor.eig_psi_hard_bounds(1) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(0) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(1) = 10*3.1415;
 
-		} // if ( (*eig_X)(12,0) >= quadrotor.eig_psi_hard_bounds(0) || -(*eig_X)(12,0) >= quadrotor.eig_psi_hard_bounds(1))
+		} // if ( (*eig_X)(12,0) >= ugv.eig_psi_hard_bounds(0) || -(*eig_X)(12,0) >= ugv.eig_psi_hard_bounds(1))
 
 
 		// ****************************************************** //
@@ -2608,71 +3044,71 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 
 		if ( sqrt( xdiff*xdiff + ydiff*ydiff ) < 0.1 )
 		{
-			quadrotor.eig_psi_hard_bounds(0) = 10*3.1415;
-			quadrotor.eig_psi_hard_bounds(1) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(0) = 10*3.1415;
+			ugv.eig_psi_hard_bounds(1) = 10*3.1415;
 		}
 		// Compute box constraints for the segments occuring later in the planned trajectory
 		compute_box_constraints(segment_number, goalStride);
 
 		// Set the orientation of boundary conditions
-		quadrotor.eig_Fx_hard.block(8,0,2*quadrotor.n,quadrotor.n) = quadrotor.eig_Fx_hard_boundary_conditions;	
+		ugv.eig_Fx_hard.block(8,0,2*ugv.n,ugv.n) = ugv.eig_Fx_hard_boundary_conditions;	
 
 		// Iterate over the number of time steps
 		for (unsigned short int j = 0; j < mpc_params.T; j++)
 		{
 
 			// Iterate over the number of states 
-			for (unsigned short int i = 0; i < quadrotor.n; i++)
+			for (unsigned short int i = 0; i < ugv.n; i++)
 			{
 
 				// else if (j == 0 && i == 12)
 				// {	
-				// 	quadrotor.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
-				// 	quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon + abs((*eig_X)(i+1))*mpc_params.delta_t;
 				// }	
 				// else 
 				// if (j == mpc_params.T-1 && i < 3)
 				// {
-					// quadrotor.eig_x_hard_boundary_conditions(i,j) = localPath(goalStride-1,i) + mpc_params.bc_epsilon; // Aka big-M constraint
-					// quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = -localPath(goalStride-1,i) + mpc_params.bc_epsilon; // Aka big-M constraint
+					// ugv.eig_x_hard_boundary_conditions(i,j) = localPath(goalStride-1,i) + mpc_params.bc_epsilon; // Aka big-M constraint
+					// ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = -localPath(goalStride-1,i) + mpc_params.bc_epsilon; // Aka big-M constraint
 				// }
 				// if (j == 0)
 				// {													// Position		// Offset which expands if planning fails  // Offset introduced as a function of velocity
-				// 	quadrotor.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
-				// 	quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t;
 				// }
 				// else
 				// {
-					quadrotor.eig_x_hard_boundary_conditions(i,j) = 1000; // Aka big-M constraint
-					quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_hard_boundary_conditions(i,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = 1000; // Aka big-M constraint
 				// }
 				// else if (j == 0 && i < 6)
 				// {
-				// 	quadrotor.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
-				// 	quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
 				// }
 				// else if (j == 0 && i > 5 && i < 9)
 				// {
-				// 	quadrotor.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
-				// 	quadrotor.eig_x_hard_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i,j) = (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
+				// 	ugv.eig_x_hard_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + (mpc_params.bc_epsilon*max(numFailures,1) + abs((*eig_X)(i+3))*mpc_params.delta_t)*mpc_params.delta_t;
 				// }
 
-			} // for (unsigned short int i = 0; i < quadrotor.n; i++)
+			} // for (unsigned short int i = 0; i < ugv.n; i++)
 			
-			quadrotor.eig_x_hard_bounds.block(8,j,2*quadrotor.n,1) = quadrotor.eig_x_hard_boundary_conditions.col(j);
+			ugv.eig_x_hard_bounds.block(8,j,2*ugv.n,1) = ugv.eig_x_hard_boundary_conditions.col(j);
 
 		} // for (unsigned short int j = 0; j < mpc_params.T; j++)
 
 		// Control constraints
-		mpc_params.P[segment_number].block(8,0,2*quadrotor.n,quadrotor.n) = quadrotor.eig_Fx_hard_boundary_conditions;
-		mpc_params.P[segment_number].block(quadrotor.num_hard_x,quadrotor.n,quadrotor.num_hard_u,quadrotor.m) = quadrotor.eig_Fu_hard;
+		mpc_params.P[segment_number].block(8,0,2*ugv.n,ugv.n) = ugv.eig_Fx_hard_boundary_conditions;
+		mpc_params.P[segment_number].block(ugv.num_hard_x,ugv.n,ugv.num_hard_u,ugv.m) = ugv.eig_Fu_hard;
 		
 		// Iterate over the number of time steps
 		for (unsigned short int j = 0; j < mpc_params.T; j++)
 		{
 			
-			mpc_params.h[segment_number].block(8,j,2*quadrotor.n,1) = quadrotor.eig_x_hard_boundary_conditions.col(j);
-			mpc_params.h[segment_number].block(quadrotor.num_hard_x,j,quadrotor.num_hard_u,1) = quadrotor.eig_u_hard_bounds;
+			mpc_params.h[segment_number].block(8,j,2*ugv.n,1) = ugv.eig_x_hard_boundary_conditions.col(j);
+			mpc_params.h[segment_number].block(ugv.num_hard_x,j,ugv.num_hard_u,1) = ugv.eig_u_hard_bounds;
 
 		} // for (unsigned short int j = 0; j < mpc_params.T; j++)
 
@@ -2698,51 +3134,51 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 	delete[] bomt.rho_i_x_array;
 
 	// Set the number of soft constraints on the state (the number of soft constraints on the control is constant)
-	quadrotor.num_soft_x = quadrotor.num_hard_x;
+	ugv.num_soft_x = ugv.num_hard_x;
 
 	float sign_of_heading_constraint;
 
 	// Set new storage contaniners for a few
-	bomt.FxtildeX_array = new float[quadrotor.num_soft_x*mpc_params.T];
-	bomt.d_tilde_x_array = new float[quadrotor.num_soft_x*mpc_params.T];
-	bomt.d_hat_x_array = new float[quadrotor.num_soft_x*mpc_params.T];
-	bomt.rho_i_x_array = new float[quadrotor.num_soft_x];
+	bomt.FxtildeX_array = new float[ugv.num_soft_x*mpc_params.T];
+	bomt.d_tilde_x_array = new float[ugv.num_soft_x*mpc_params.T];
+	bomt.d_hat_x_array = new float[ugv.num_soft_x*mpc_params.T];
+	bomt.rho_i_x_array = new float[ugv.num_soft_x];
 
 	// Set the elements of the new containers to zero
-	memset(bomt.FxtildeX_array, 0, quadrotor.num_soft_x*mpc_params.T*sizeof(*bomt.FxtildeX_array));
-	memset(bomt.d_tilde_x_array, 0, quadrotor.num_soft_x*mpc_params.T*sizeof(*bomt.d_tilde_x_array));
-	memset(bomt.d_hat_x_array, 0, quadrotor.num_soft_x*mpc_params.T*sizeof(*bomt.d_hat_x_array));
-	memset(bomt.rho_i_x_array, 0, quadrotor.num_soft_x*sizeof(*bomt.rho_i_x_array));
+	memset(bomt.FxtildeX_array, 0, ugv.num_soft_x*mpc_params.T*sizeof(*bomt.FxtildeX_array));
+	memset(bomt.d_tilde_x_array, 0, ugv.num_soft_x*mpc_params.T*sizeof(*bomt.d_tilde_x_array));
+	memset(bomt.d_hat_x_array, 0, ugv.num_soft_x*mpc_params.T*sizeof(*bomt.d_hat_x_array));
+	memset(bomt.rho_i_x_array, 0, ugv.num_soft_x*sizeof(*bomt.rho_i_x_array));
 
 	// Map the containers to Eigen Matrices (easier to perform linear algebra using Eigen)
-	bomt.FxtildeX = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.FxtildeX_array, quadrotor.num_hard_x, mpc_params.T);
-	bomt.d_tilde_x = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.d_tilde_x_array, quadrotor.num_hard_x, mpc_params.T);
-	bomt.d_hat_x = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.d_hat_x_array, quadrotor.num_hard_x, mpc_params.T);
-	bomt.rho_i_x = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.rho_i_x_array, quadrotor.num_hard_x, 1);
+	bomt.FxtildeX = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.FxtildeX_array, ugv.num_hard_x, mpc_params.T);
+	bomt.d_tilde_x = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.d_tilde_x_array, ugv.num_hard_x, mpc_params.T);
+	bomt.d_hat_x = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.d_hat_x_array, ugv.num_hard_x, mpc_params.T);
+	bomt.rho_i_x = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>> (bomt.rho_i_x_array, ugv.num_hard_x, 1);
 
 	// Resize the vector storing the value of rho for each constraint
-	bomt.rho_i_x_vec.resize(quadrotor.num_soft_x);
+	bomt.rho_i_x_vec.resize(ugv.num_soft_x);
 
 	// Set the soft constraint matrix and bound size and elements to zero
-	quadrotor.eig_Fx_soft = Eigen::MatrixXf::Zero(quadrotor.num_soft_x,quadrotor.n);
-	quadrotor.eig_x_soft_bounds = Eigen::MatrixXf::Zero(quadrotor.num_soft_x,mpc_params.T);
+	ugv.eig_Fx_soft = Eigen::MatrixXf::Zero(ugv.num_soft_x,ugv.n);
+	ugv.eig_x_soft_bounds = Eigen::MatrixXf::Zero(ugv.num_soft_x,mpc_params.T);
 
 	// Set the heading angle soft constraints
-	quadrotor.eig_psi_soft_bounds(0) = (float) quadrotor.half_camera_FOV*mpc_params.collisionAvoidanceSoftConstraintOffset + goal(3,0);
-	quadrotor.eig_psi_soft_bounds(1) = (float) quadrotor.half_camera_FOV*mpc_params.collisionAvoidanceSoftConstraintOffset - goal(3,0);
+	ugv.eig_psi_soft_bounds(0) = (float) ugv.half_camera_FOV*mpc_params.collisionAvoidanceSoftConstraintOffset + goal(3,0);
+	ugv.eig_psi_soft_bounds(1) = (float) ugv.half_camera_FOV*mpc_params.collisionAvoidanceSoftConstraintOffset - goal(3,0);
 	
-	get_sign(sign_of_heading_constraint,quadrotor.eig_psi_soft_bounds(0));
-	int turns = floor(quadrotor.eig_psi_soft_bounds(0)/((sign_of_heading_constraint)*M_PI));
+	get_sign(sign_of_heading_constraint,ugv.eig_psi_soft_bounds(0));
+	int turns = floor(ugv.eig_psi_soft_bounds(0)/((sign_of_heading_constraint)*M_PI));
 	if (turns > 0)
 	{
-		quadrotor.eig_psi_soft_bounds(0) = quadrotor.eig_psi_soft_bounds(0) - sign_of_heading_constraint*M_PI*turns;
+		ugv.eig_psi_soft_bounds(0) = ugv.eig_psi_soft_bounds(0) - sign_of_heading_constraint*M_PI*turns;
 	}
 
-	get_sign(sign_of_heading_constraint,quadrotor.eig_psi_soft_bounds(1));
-	turns = floor(quadrotor.eig_psi_soft_bounds(1)/((sign_of_heading_constraint)*M_PI));
+	get_sign(sign_of_heading_constraint,ugv.eig_psi_soft_bounds(1));
+	turns = floor(ugv.eig_psi_soft_bounds(1)/((sign_of_heading_constraint)*M_PI));
 	if (turns > 0)
 	{
-		quadrotor.eig_psi_soft_bounds(1) = quadrotor.eig_psi_soft_bounds(1) - sign_of_heading_constraint*M_PI*turns;
+		ugv.eig_psi_soft_bounds(1) = ugv.eig_psi_soft_bounds(1) - sign_of_heading_constraint*M_PI*turns;
 	}
 
 	if (segment_number == 0)
@@ -2754,13 +3190,13 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		// ****************************************************** //
 
 		// Compute the number of collision avoidance constraints
-		int num_obstacle_constraints = quadrotor.num_hard_x - 4 - 28;
+		int num_obstacle_constraints = ugv.num_hard_x - 4 - 28;
 
 		// Loosen the constraints if the path requires us to turn around
-		if ( quadrotor.X0(12) >= quadrotor.eig_psi_soft_bounds(0) || -quadrotor.X0(12) >= quadrotor.eig_psi_soft_bounds(1))
+		if ( ugv.X0(12) >= ugv.eig_psi_soft_bounds(0) || -ugv.X0(12) >= ugv.eig_psi_soft_bounds(1))
 		{
-			quadrotor.eig_psi_soft_bounds(0) = 10*3.1415;
-			quadrotor.eig_psi_soft_bounds(1) = 10*3.1415;
+			ugv.eig_psi_soft_bounds(0) = 10*3.1415;
+			ugv.eig_psi_soft_bounds(1) = 10*3.1415;
 		}
 
 		// ******************************************** //
@@ -2771,25 +3207,25 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		for (int i = 0; i < num_obstacle_constraints; i++)
 		{
 		
-			quadrotor.eig_Fx_soft(i,0) = collisionConstraints(i,0);
-			quadrotor.eig_Fx_soft(i,1) = collisionConstraints(i,1);
-			quadrotor.eig_Fx_soft(i,2) = collisionConstraints(i,2);
+			ugv.eig_Fx_soft(i,0) = collisionConstraints(i,0);
+			ugv.eig_Fx_soft(i,1) = collisionConstraints(i,1);
+			ugv.eig_Fx_soft(i,2) = collisionConstraints(i,2);
 
 			// Iterate over the number of time steps
 			for (int j = 0; j < mpc_params.T; j++)
 			{
 				
 				// Set the bounds for the constraint. They are constant over the time horizon.
-				quadrotor.eig_x_soft_bounds(i,j) = collisionConstraints(i,3)*mpc_params.collisionAvoidanceSoftConstraintOffset;
+				ugv.eig_x_soft_bounds(i,j) = collisionConstraints(i,3)*mpc_params.collisionAvoidanceSoftConstraintOffset;
 
 			} // for (int j = 0; j < mpc_params.T; j++)
 		
 		} // for (int i = 0; i < num_obstacle_constraints; i++)			
 
 		// Set the remaining constraints on heading, altitude, and boundary conditions
-		quadrotor.eig_Fx_soft.block(num_obstacle_constraints,0,2,14) = quadrotor.eig_Fpsi_hard;
-		quadrotor.eig_Fx_soft.block(num_obstacle_constraints + 2,0,2,14) = quadrotor.eig_Fz_soft_ceiling;		
-		quadrotor.eig_Fx_soft.block(num_obstacle_constraints + 4,0,2*quadrotor.n,quadrotor.n) = quadrotor.eig_Fx_hard_boundary_conditions;		
+		ugv.eig_Fx_soft.block(num_obstacle_constraints,0,2,14) = ugv.eig_Fpsi_hard;
+		ugv.eig_Fx_soft.block(num_obstacle_constraints + 2,0,2,14) = ugv.eig_Fz_soft_ceiling;		
+		ugv.eig_Fx_soft.block(num_obstacle_constraints + 4,0,2*ugv.n,ugv.n) = ugv.eig_Fx_hard_boundary_conditions;		
 
 		// ******************************* //
 		// Compute the boundary conditions //
@@ -2800,31 +3236,31 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		{
 
 			// Iterate over the number of states
-			for (int i = 0; i < quadrotor.n; i++)
+			for (int i = 0; i < ugv.n; i++)
 			{
 				
-				// On first time step, for x,y,z and psi states
-				if (j == 0 && (i < 3 || i == 12))
+				// On first time step, for y and psi states						x,y,z and psi states
+				if (j == 0 && (i == 1 || i == 3))
 				{	
 					
-					quadrotor.eig_x_soft_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*mpc_params.collisionAvoidanceSoftConstraintOffset;
-					quadrotor.eig_x_soft_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*mpc_params.collisionAvoidanceSoftConstraintOffset;
+					ugv.eig_x_soft_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*mpc_params.collisionAvoidanceSoftConstraintOffset;
+					ugv.eig_x_soft_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*mpc_params.collisionAvoidanceSoftConstraintOffset;
 
 				} // if (j == 0 && (i < 3 || i == 12))
 				else
 				{
 					
-					quadrotor.eig_x_soft_boundary_conditions(i,j) = 1000; // Aka big-M constraint
-					quadrotor.eig_x_soft_boundary_conditions(i+quadrotor.n,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_soft_boundary_conditions(i,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_soft_boundary_conditions(i+ugv.n,j) = 1000; // Aka big-M constraint
 
 				} // if (j == 0 && (i < 3 || i == 12))
 
-			} // for (int i = 0; i < quadrotor.n; i++)
+			} // for (int i = 0; i < ugv.n; i++)
 			
 			// Set the bounds for the soft constraints on heading, altitude, and boundary conditions
-			quadrotor.eig_x_soft_bounds.block(num_obstacle_constraints,j,2,1) = quadrotor.eig_psi_soft_bounds;
-			quadrotor.eig_x_soft_bounds.block(num_obstacle_constraints + 2,j,2,1) = quadrotor.eig_z_soft_bounds;
-			quadrotor.eig_x_soft_bounds.block(num_obstacle_constraints + 4,j,2*quadrotor.n,1) = quadrotor.eig_x_soft_boundary_conditions.col(j);
+			ugv.eig_x_soft_bounds.block(num_obstacle_constraints,j,2,1) = ugv.eig_psi_soft_bounds;
+			ugv.eig_x_soft_bounds.block(num_obstacle_constraints + 2,j,2,1) = ugv.eig_z_soft_bounds;
+			ugv.eig_x_soft_bounds.block(num_obstacle_constraints + 4,j,2*ugv.n,1) = ugv.eig_x_soft_boundary_conditions.col(j);
 
 		} // for (int j = 0; j < mpc_params.T; j++)
 
@@ -2834,13 +3270,13 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 
 		// Set the size of h and its elements to zero
 		mpc_params.h_tilde[segment_number] = Eigen::MatrixXf::Zero(mpc_params.l, mpc_params.T);
-		mpc_params.h_tilde[segment_number].block(0,0,quadrotor.num_soft_x,mpc_params.T) = quadrotor.eig_x_soft_bounds;
+		mpc_params.h_tilde[segment_number].block(0,0,ugv.num_soft_x,mpc_params.T) = ugv.eig_x_soft_bounds;
 			
 		// Iterate over the number of time steps
 		for (unsigned short int j = 0; j < mpc_params.T; j++)
 		{
 			
-			mpc_params.h_tilde[segment_number].block(quadrotor.num_soft_x,j,quadrotor.num_soft_u,1) = quadrotor.eig_u_soft_bounds;
+			mpc_params.h_tilde[segment_number].block(ugv.num_soft_x,j,ugv.num_soft_u,1) = ugv.eig_u_soft_bounds;
 
 		} // for (int j = 0; j < mpc_params.T; j++)
 
@@ -2854,16 +3290,16 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		// ****************************************************** //
 
 		// Loosen the constraints if the path requires us to turn around
-		if ( (*eig_X)(12,0) >= quadrotor.eig_psi_soft_bounds(0) || -(*eig_X)(12,0) >= quadrotor.eig_psi_soft_bounds(1))
+		if ( (*eig_X)(12,0) >= ugv.eig_psi_soft_bounds(0) || -(*eig_X)(12,0) >= ugv.eig_psi_soft_bounds(1))
 		{
 			
-			quadrotor.eig_psi_soft_bounds(0) = 10*3.1415;
-			quadrotor.eig_psi_soft_bounds(1) = 10*3.1415;
+			ugv.eig_psi_soft_bounds(0) = 10*3.1415;
+			ugv.eig_psi_soft_bounds(1) = 10*3.1415;
 
-		} //if ( (*eig_X)(12,0) >= quadrotor.eig_psi_soft_bounds(0) || -(*eig_X)(12,0) >= quadrotor.eig_psi_soft_bounds(1))
+		} //if ( (*eig_X)(12,0) >= ugv.eig_psi_soft_bounds(0) || -(*eig_X)(12,0) >= ugv.eig_psi_soft_bounds(1))
 
 		// Set the soft constraints
-		quadrotor.eig_Fx_soft = quadrotor.eig_Fx_hard;
+		ugv.eig_Fx_soft = ugv.eig_Fx_hard;
 
 		// ******************************* //
 		// Compute the boundary conditions //
@@ -2874,24 +3310,24 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		{
 
 			// Iterate over the number of states
-			for (unsigned short int i = 0; i < quadrotor.n; i++)
+			for (unsigned short int i = 0; i < ugv.n; i++)
 			{
 			
 				if (j == 0)
 				{	
-					quadrotor.eig_x_soft_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*0.95;
-					quadrotor.eig_x_soft_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*0.95;
+					ugv.eig_x_soft_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*0.95;
+					ugv.eig_x_soft_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*0.95;
 				}
 				else
 				{
-					quadrotor.eig_x_soft_boundary_conditions(i,j) = 1000; // Aka big-M constraint
-					quadrotor.eig_x_soft_boundary_conditions(i+quadrotor.n,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_soft_boundary_conditions(i,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_soft_boundary_conditions(i+ugv.n,j) = 1000; // Aka big-M constraint
 				}
 			
-			} // for (unsigned short int i = 0; i < quadrotor.n; i++)
+			} // for (unsigned short int i = 0; i < ugv.n; i++)
 			
 			// Set the soft bounds for the heading and altitude constraints
-			quadrotor.eig_x_soft_bounds.block(0,j,8,1) = quadrotor.eig_x_hard_bounds.block(0,j,8,1);
+			ugv.eig_x_soft_bounds.block(0,j,8,1) = ugv.eig_x_hard_bounds.block(0,j,8,1);
 
 		} // for (unsigned short int j = 0; j < mpc_params.T; j++)
 
@@ -2900,7 +3336,7 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		{
 		
 			// Set the soft bounds for the boundary conditions
-			quadrotor.eig_x_soft_bounds.block(8,i,2*quadrotor.n,1) = quadrotor.eig_x_soft_boundary_conditions.col(i);
+			ugv.eig_x_soft_bounds.block(8,i,2*ugv.n,1) = ugv.eig_x_soft_boundary_conditions.col(i);
 		
 		}
 
@@ -2909,14 +3345,14 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		// ********************************************************** //
 
 		// Set the size of h and its elements to zero
-		mpc_params.h_tilde[segment_number] = Eigen::MatrixXf::Zero(8+2*quadrotor.n+quadrotor.num_soft_u, mpc_params.T);
-		mpc_params.h_tilde[segment_number].block(0,0,8+2*quadrotor.n,mpc_params.T) = quadrotor.eig_x_soft_bounds;
+		mpc_params.h_tilde[segment_number] = Eigen::MatrixXf::Zero(8+2*ugv.n+ugv.num_soft_u, mpc_params.T);
+		mpc_params.h_tilde[segment_number].block(0,0,8+2*ugv.n,mpc_params.T) = ugv.eig_x_soft_bounds;
 		
 		// Iterate over the number of time steps
 		for (unsigned short int j = 0; j < mpc_params.T; j++)
 		{
 		
-			mpc_params.h_tilde[segment_number].block(8+2*quadrotor.n,j,quadrotor.num_soft_u,1) = quadrotor.eig_u_soft_bounds;
+			mpc_params.h_tilde[segment_number].block(8+2*ugv.n,j,ugv.num_soft_u,1) = ugv.eig_u_soft_bounds;
 		
 		} // for (unsigned short int j = 0; j < mpc_params.T; j++)
 
@@ -2930,16 +3366,16 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		// ****************************************************** //
 
 		// Loosen the constraints if the path requires us to turn around		
-		if ( (*eig_X)(12,0) >= quadrotor.eig_psi_soft_bounds(0) || -(*eig_X)(12,0) >= quadrotor.eig_psi_soft_bounds(1))
+		if ( (*eig_X)(12,0) >= ugv.eig_psi_soft_bounds(0) || -(*eig_X)(12,0) >= ugv.eig_psi_soft_bounds(1))
 		{
 
-			quadrotor.eig_psi_soft_bounds(0) = 10*3.1415;
-			quadrotor.eig_psi_soft_bounds(1) = 10*3.1415;
+			ugv.eig_psi_soft_bounds(0) = 10*3.1415;
+			ugv.eig_psi_soft_bounds(1) = 10*3.1415;
 
-		} // if ( (*eig_X)(12,0) >= quadrotor.eig_psi_soft_bounds(0) || -(*eig_X)(12,0) >= quadrotor.eig_psi_soft_bounds(1))
+		} // if ( (*eig_X)(12,0) >= ugv.eig_psi_soft_bounds(0) || -(*eig_X)(12,0) >= ugv.eig_psi_soft_bounds(1))
 
 		// Set the soft constraints
-		quadrotor.eig_Fx_soft = quadrotor.eig_Fx_hard;
+		ugv.eig_Fx_soft = ugv.eig_Fx_hard;
 
 		// ******************************* //
 		// Compute the boundary conditions //
@@ -2950,32 +3386,32 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		{
 
 			// Iterate over the number of
-			for (int i = 0; i < quadrotor.n; i++)
+			for (int i = 0; i < ugv.n; i++)
 			{
 				if (j == 0)
 				{	
-					quadrotor.eig_x_soft_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*0.95;
-					quadrotor.eig_x_soft_boundary_conditions(i+quadrotor.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*0.95;
+					ugv.eig_x_soft_boundary_conditions(i,j) = (*eig_X)(i,0) + mpc_params.bc_epsilon*0.95;
+					ugv.eig_x_soft_boundary_conditions(i+ugv.n,j) = - (*eig_X)(i,0) + mpc_params.bc_epsilon*0.95;
 				}
 				else if (j == mpc_params.T-1 && i < 3)
 				{
 					
-					quadrotor.eig_x_soft_boundary_conditions(i,j) = localPath(goalStride-1,i) + mpc_params.bc_epsilon*0.95; // Aka big-M constraint
-					quadrotor.eig_x_soft_boundary_conditions(i+quadrotor.n,j) = -localPath(goalStride-1,i) + mpc_params.bc_epsilon*0.95; // Aka big-M constraint
+					ugv.eig_x_soft_boundary_conditions(i,j) = localPath(goalStride-1,i) + mpc_params.bc_epsilon*0.95; // Aka big-M constraint
+					ugv.eig_x_soft_boundary_conditions(i+ugv.n,j) = -localPath(goalStride-1,i) + mpc_params.bc_epsilon*0.95; // Aka big-M constraint
 
 				} // if (j == mpc_params.T-1 && i < 3)
 				else
 				{
 					
-					quadrotor.eig_x_soft_boundary_conditions(i,j) = 1000; // Aka big-M constraint
-					quadrotor.eig_x_soft_boundary_conditions(i+quadrotor.n,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_soft_boundary_conditions(i,j) = 1000; // Aka big-M constraint
+					ugv.eig_x_soft_boundary_conditions(i+ugv.n,j) = 1000; // Aka big-M constraint
 
 				} // if (j == mpc_params.T-1 && i < 3)
 
-			} // for (int i = 0; i < quadrotor.n; i++)
+			} // for (int i = 0; i < ugv.n; i++)
 
 			// Set the bounds for the heading and altitude soft constraints
-			quadrotor.eig_x_soft_bounds.block(0,j,8,1) = quadrotor.eig_x_hard_bounds.block(0,j,8,1);
+			ugv.eig_x_soft_bounds.block(0,j,8,1) = ugv.eig_x_hard_bounds.block(0,j,8,1);
 
 		} // for (int j = 0; j < mpc_params.T; j++)
 
@@ -2983,7 +3419,7 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		for (int i = 0; i < mpc_params.T; i++)
 		{
 			
-			quadrotor.eig_x_soft_bounds.block(8,i,2*quadrotor.n,1) = quadrotor.eig_x_soft_boundary_conditions.col(i);
+			ugv.eig_x_soft_bounds.block(8,i,2*ugv.n,1) = ugv.eig_x_soft_boundary_conditions.col(i);
 
 		} // for (int i = 0; i < mpc_params.T; i++)
 
@@ -2991,12 +3427,12 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 		// Compute the vector h, used in computation of the objective //
 		// ********************************************************** //
 
-		mpc_params.h_tilde[segment_number] = Eigen::MatrixXf::Zero(8+2*quadrotor.n+quadrotor.num_soft_u, mpc_params.T);
-		mpc_params.h_tilde[segment_number].block(0,0,8+2*quadrotor.n,mpc_params.T) = quadrotor.eig_x_soft_bounds;
+		mpc_params.h_tilde[segment_number] = Eigen::MatrixXf::Zero(8+2*ugv.n+ugv.num_soft_u, mpc_params.T);
+		mpc_params.h_tilde[segment_number].block(0,0,8+2*ugv.n,mpc_params.T) = ugv.eig_x_soft_bounds;
 		for (int j = 0; j < mpc_params.T; j++)
 		{
 			
-			mpc_params.h_tilde[segment_number].block(8+2*quadrotor.n,j,quadrotor.num_soft_u,1) = quadrotor.eig_u_soft_bounds;
+			mpc_params.h_tilde[segment_number].block(8+2*ugv.n,j,ugv.num_soft_u,1) = ugv.eig_u_soft_bounds;
 
 		} // for (int j = 0; j < mpc_params.T; j++)
 
@@ -3009,7 +3445,7 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 
 // Member function of F_MPC_UNCUT
 // fmpcsolve: Solves the model predictive control problem minimize (42) subject to (21), (23), and (34)
-// input: quadrotor, mpc_params, bag_of_many_things: structures containing system and problem parameters; see <structures.h> for details
+// input: ugv, mpc_params, bag_of_many_things: structures containing system and problem parameters; see <structures.h> for details
 // output: X, U: matrices containing the state and control inputs across the time horizon, respectively. The ith column corresponds to the state or control input at time i*delta_t
 bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_number)
 {
@@ -3023,7 +3459,7 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 	mpc_params.mu_13 = mpc_params.mu_13_initial;
 
 	// Iterate over the number of states
-	for (int i = 0; i < quadrotor.n; i++)
+	for (int i = 0; i < ugv.n; i++)
 	{
 
 		// Iterate over the number of time steps
@@ -3034,10 +3470,10 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 
 		} // for (int j = 0; j < mpc_params.T; j++)
 
-	} // for (int i = 0; i < quadrotor.n; i++)
+	} // for (int i = 0; i < ugv.n; i++)
 
 	// Calculate Ax and store into b for the initial step
-	bomt.b.col(0) = quadrotor.eig_A * (*X).col(0);
+	bomt.b.col(0) = ugv.eig_A * (*X).col(0);
 
 	// Indicate to underlying code that this is the first run
 	bomt.initial_run = true;
@@ -3052,9 +3488,9 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 	{		
 
 		// These functions are used to determine feasible directions \deltaZ and \delta nu 
-		gfgphp(&quadrotor, &mpc_params, X, U, &bomt);
-		dtildhat(&quadrotor, &mpc_params, X, U, &bomt);
-		rd_tilde_rp(&quadrotor, &mpc_params, X, U, &bomt);
+		gfgphp(&ugv, &mpc_params, X, U, &bomt);
+		dtildhat(&ugv, &mpc_params, X, U, &bomt);
+		rd_tilde_rp(&ugv, &mpc_params, X, U, &bomt);
 		res = resdresp(bomt);
 
 		// Indicate that the first run has begun
@@ -3070,28 +3506,28 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 			bomt.res_p = 0.0;
 			bomt.res_dx = 0.0;
 			bomt.res_du = 0.0;
-			bomt.rp = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			bomt.rd_tilde_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			bomt.Ctnu_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			bomt.dz_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			bomt.rd_tilde_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-			bomt.Ctnu_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-			bomt.dz_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-			// bomt.TwoQX = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			// bomt.TwoRU = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-			bomt.dx = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,mpc_params.T);
-			bomt.du = Eigen::MatrixXf::Zero(quadrotor.num_hard_u,mpc_params.T);
-			bomt.d_tilde_x = Eigen::MatrixXf::Zero(quadrotor.num_soft_x,mpc_params.T);
-			bomt.d_hat_x = Eigen::MatrixXf::Zero(quadrotor.num_soft_x,mpc_params.T);
-			bomt.d_tilde_u = Eigen::MatrixXf::Zero(quadrotor.num_soft_u,mpc_params.T);
-			bomt.d_hat_u = Eigen::MatrixXf::Zero(quadrotor.num_soft_u,mpc_params.T);
-			bomt.nu = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			bomt.PtTdt_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			bomt.xdz_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			bomt.PtTdt_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-			bomt.udz_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-			bomt.newx = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			bomt.newu = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
+			bomt.rp = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			bomt.rd_tilde_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			bomt.Ctnu_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			bomt.dz_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			bomt.rd_tilde_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+			bomt.Ctnu_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+			bomt.dz_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+			// bomt.TwoQX = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			// bomt.TwoRU = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+			bomt.dx = Eigen::MatrixXf::Zero(ugv.num_hard_x,mpc_params.T);
+			bomt.du = Eigen::MatrixXf::Zero(ugv.num_hard_u,mpc_params.T);
+			bomt.d_tilde_x = Eigen::MatrixXf::Zero(ugv.num_soft_x,mpc_params.T);
+			bomt.d_hat_x = Eigen::MatrixXf::Zero(ugv.num_soft_x,mpc_params.T);
+			bomt.d_tilde_u = Eigen::MatrixXf::Zero(ugv.num_soft_u,mpc_params.T);
+			bomt.d_hat_u = Eigen::MatrixXf::Zero(ugv.num_soft_u,mpc_params.T);
+			bomt.nu = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			bomt.PtTdt_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			bomt.xdz_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			bomt.PtTdt_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+			bomt.udz_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+			bomt.newx = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			bomt.newu = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
 
 			return false;
 
@@ -3102,7 +3538,7 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 			break;
 
 		// Compute search directions
-		dnudz(&quadrotor, &mpc_params, &bomt);
+		dnudz(&ugv, &mpc_params, &bomt);
 		s = 1.0f;
 
 		// ****************************************************************** //
@@ -3155,14 +3591,14 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 			// }			
 
 			// Calculate Pz based on zdz calculated above
-			bomt.FxX = quadrotor.eig_Fx_hard * bomt.xdz_x;
-			bomt.FuU = quadrotor.eig_Fu_hard * bomt.udz_u;
+			bomt.FxX = ugv.eig_Fx_hard * bomt.xdz_x;
+			bomt.FuU = ugv.eig_Fu_hard * bomt.udz_u;
 
 			// Check for hard constraint violations. If any are present, revise the trajectory proposal.
 			cont = false;
 
 			// Iterate over the number of hard state constraints
-			for(int i = 0; i < quadrotor.num_hard_x; ++i)
+			for(int i = 0; i < ugv.num_hard_x; ++i)
 			{
 
 				// Iterate over the number of time steps
@@ -3173,7 +3609,7 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 					// {
 
 						// If the constraint is violated
-						if(bomt.FxX(i,j) > quadrotor.eig_x_hard_bounds(i,j))
+						if(bomt.FxX(i,j) > ugv.eig_x_hard_bounds(i,j))
 						{
 						
 							// if (segment_number > 0)
@@ -3183,8 +3619,8 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 									// cout << "state: " << (*X).col(j).transpose() << endl;
 									// cout << "goal: " << goal.transpose() << endl;
 									// cout << "segment_nu1mber: " << segment_number << endl;
-									// cout << "Fx rows" << i << ": " << quadrotor.eig_Fx_hard.row(i) << endl << quadrotor.eig_x_hard_bounds(i,j) << endl;		
-									// std::cout << "(i, j)" << i << ", " << j << ": " << bomt.FxX(i,j) << ", " << quadrotor.eig_x_hard_bounds(i,j) << std::endl;
+									// cout << "Fx rows" << i << ": " << ugv.eig_Fx_hard.row(i) << endl << ugv.eig_x_hard_bounds(i,j) << endl;		
+									// std::cout << "(i, j)" << i << ", " << j << ": " << bomt.FxX(i,j) << ", " << ugv.eig_x_hard_bounds(i,j) << std::endl;
 									// // fx_count = 0;
 							// 	}
 	
@@ -3193,7 +3629,7 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 							cont = true;
 							break;
 
-						} // if(bomt.FxX(i,j) > quadrotor.eig_x_hard_bounds(i,j))
+						} // if(bomt.FxX(i,j) > ugv.eig_x_hard_bounds(i,j))
 
 					// } // if (i != 1 && i != 2)
 
@@ -3206,10 +3642,10 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 
 				} // if (cont)
 
-			} // for(int i = 0; i < quadrotor.num_hard_x; ++i)
+			} // for(int i = 0; i < ugv.num_hard_x; ++i)
 
 			// Iterate over the number of hard control constraints
-			for (int i = 0; i < quadrotor.num_hard_u; i++)
+			for (int i = 0; i < ugv.num_hard_u; i++)
 			{
 
 				// Iterate over the number of time steps
@@ -3217,12 +3653,12 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 				{
 
 					// If the constraint is violated
-					if(bomt.FuU(i,j) > quadrotor.eig_u_hard_bounds[i])
+					if(bomt.FuU(i,j) > ugv.eig_u_hard_bounds[i])
 					{
 						
 						// if (fx_count == 5)
 						// {
-						// 	std::cout << "ctrl: (i, j)" << i << ", " << j << ": " << bomt.FuU(i,j) << " " << quadrotor.eig_u_hard_bounds[i] << std::endl;
+						// 	std::cout << "ctrl: (i, j)" << i << ", " << j << ": " << bomt.FuU(i,j) << " " << ugv.eig_u_hard_bounds[i] << std::endl;
 							
 						// 	fx_count=0;
 						// }
@@ -3230,7 +3666,7 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 						// fx_count++;
 						cont = true;
 
-					} // if(bomt.FuU(i,j) > quadrotor.eig_u_hard_bounds[i])
+					} // if(bomt.FuU(i,j) > ugv.eig_u_hard_bounds[i])
 
 				} // for(int j = 0; j < mpc_params.T; ++j)
 				
@@ -3241,7 +3677,7 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 
 				} // if (cont)	
 
-			} // for (int i = 0; i < quadrotor.num_hard_u; i++)
+			} // for (int i = 0; i < ugv.num_hard_u; i++)
 
 		} 
 
@@ -3263,8 +3699,8 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 		// }				
 
 		// Calculate Pz based on zdz calculated above
-		bomt.FxX = quadrotor.eig_Fx_hard * bomt.xdz_x;
-		bomt.FuU = quadrotor.eig_Fu_hard * bomt.udz_u;
+		bomt.FxX = ugv.eig_Fx_hard * bomt.xdz_x;
+		bomt.FuU = ugv.eig_Fu_hard * bomt.udz_u;
 
 	 	// Store new nu and z as determined by dnu, dz, and the s found in the feasibility search
 		bomt.nu_proposed.noalias() = bomt.nu;
@@ -3278,7 +3714,7 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 		(*X).noalias() += s*bomt.dz_x;
 		(*U).noalias() += s*bomt.dz_u;
 
-		// :Zero(quadrotor.n,mpc_params.T)
+		// :Zero(ugv.n,mpc_params.T)
 
 		// for (int k = 0; k < mpc_params.T; k++)
 		// {
@@ -3290,9 +3726,9 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 		// while(1) vs. for loop has negligible effect on outcome of the path but while can get stuck in an infinite loop and runs much slower
 		for (int j = 0; j < 10; j++)
 		{
-			gfgphp(&quadrotor, &mpc_params, X, U, &bomt);
-			dtildhat(&quadrotor, &mpc_params, X, U, &bomt);
-			rd_tilde_rp(&quadrotor, &mpc_params, X, U, &bomt);
+			gfgphp(&ugv, &mpc_params, X, U, &bomt);
+			dtildhat(&ugv, &mpc_params, X, U, &bomt);
+			rd_tilde_rp(&ugv, &mpc_params, X, U, &bomt);
 			newres = resdresp(bomt);
 
 			if (isnan(newres) || isinf(newres))
@@ -3302,28 +3738,28 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 				bomt.res_p = 0.0;
 				bomt.res_dx = 0.0;
 				bomt.res_du = 0.0;
-				bomt.rp = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-				bomt.rd_tilde_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-				bomt.Ctnu_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-				bomt.dz_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-				bomt.rd_tilde_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-				bomt.Ctnu_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-				bomt.dz_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-				// bomt.TwoQX = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-				// bomt.TwoRU = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-				bomt.dx = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,mpc_params.T);
-				bomt.du = Eigen::MatrixXf::Zero(quadrotor.num_hard_u,mpc_params.T);
-				bomt.d_tilde_x = Eigen::MatrixXf::Zero(quadrotor.num_soft_x,mpc_params.T);
-				bomt.d_hat_x = Eigen::MatrixXf::Zero(quadrotor.num_soft_x,mpc_params.T);
-				bomt.d_tilde_u = Eigen::MatrixXf::Zero(quadrotor.num_soft_u,mpc_params.T);
-				bomt.d_hat_u = Eigen::MatrixXf::Zero(quadrotor.num_soft_u,mpc_params.T);
-				bomt.nu = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-				bomt.PtTdt_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-				bomt.xdz_x = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-				bomt.PtTdt_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-				bomt.udz_u = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-				bomt.newx = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-				bomt.newu = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
+				bomt.rp = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+				bomt.rd_tilde_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+				bomt.Ctnu_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+				bomt.dz_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+				bomt.rd_tilde_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+				bomt.Ctnu_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+				bomt.dz_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+				// bomt.TwoQX = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+				// bomt.TwoRU = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+				bomt.dx = Eigen::MatrixXf::Zero(ugv.num_hard_x,mpc_params.T);
+				bomt.du = Eigen::MatrixXf::Zero(ugv.num_hard_u,mpc_params.T);
+				bomt.d_tilde_x = Eigen::MatrixXf::Zero(ugv.num_soft_x,mpc_params.T);
+				bomt.d_hat_x = Eigen::MatrixXf::Zero(ugv.num_soft_x,mpc_params.T);
+				bomt.d_tilde_u = Eigen::MatrixXf::Zero(ugv.num_soft_u,mpc_params.T);
+				bomt.d_hat_u = Eigen::MatrixXf::Zero(ugv.num_soft_u,mpc_params.T);
+				bomt.nu = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+				bomt.PtTdt_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+				bomt.xdz_x = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+				bomt.PtTdt_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+				bomt.udz_u = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+				bomt.newx = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+				bomt.newu = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
 				return false;
 			}
 
@@ -3374,7 +3810,7 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 
 } // bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_number)
 
-
+#ifndef DISABLE_COMMUNICATION
 void* start_communication_thread(F_MPC_UNCUT* f_mpc_uncut)
 {
 
@@ -3400,6 +3836,7 @@ void* start_comm_interface_thread(void *args)
 	return NULL;
 
 }
+#endif
 
 void* start_trajectory_planning_thread(F_MPC_UNCUT* f_mpc_uncut)
 {
@@ -3449,7 +3886,7 @@ void F_MPC_UNCUT::start()
 		log_f_mpc.writeToLog( "<TRAJ-PLANNER-FMPC> Unable to start trajectory planner thread.");
 		exit(0);
 	}
-
+	#ifndef DISABLE_COMMUNICATION
 	int	result_comm = pthread_create( &comm_tid, NULL, &start_comm_interface_thread, this);	
 	if ( result_comm )
 	{
@@ -3462,39 +3899,39 @@ void F_MPC_UNCUT::start()
 	{
 
 	}
-
+	#endif
 }
 
-void F_MPC_UNCUT::update_quadrotor_pose()
+void F_MPC_UNCUT::update_ugv_pose()
 {
 
-	quadrotor.X0 *= 0;
-	quadrotor.X0(0) = pose[1]; // x
-	quadrotor.X0(1) = -pose[0]; // y
-	quadrotor.X0(2) = -pose[2]; // z
-	quadrotor.X0(3) = pose[4]; // dx
-	quadrotor.X0(4) = -pose[3]; // dy
-	quadrotor.X0(5) = -pose[5]; // dz
-	quadrotor.X0(6) = pose[7]; // ddx
-	quadrotor.X0(7) = -pose[6]; // ddy
-	quadrotor.X0(8) = -pose[8]; // ddz
-	quadrotor.X0(9) = pose[10]; // dddx
-	quadrotor.X0(10) = -pose[9]; // dddy
-	quadrotor.X0(11) = -pose[11]; // dddz
-	quadrotor.X0(12) = pose[14]; // psi 	
+	ugv.X0 *= 0;
+	ugv.X0(0) = pose[0]; // x
+	ugv.X0(1) = -pose[2]; // dx
+	ugv.X0(2) = -pose[1]; // y
+	ugv.X0(3) = pose[3]; // dy
+	// ugv.X0(4) = -pose[3]; // dy
+	// ugv.X0(5) = -pose[5]; // dz
+	// ugv.X0(6) = pose[7]; // ddx
+	// ugv.X0(7) = -pose[6]; // ddy
+	// ugv.X0(8) = -pose[8]; // ddz
+	// ugv.X0(9) = pose[10]; // dddx
+	// ugv.X0(10) = -pose[9]; // dddy
+	// ugv.X0(11) = -pose[11]; // dddz
+	// ugv.X0(12) = pose[14]; // psi 	
 
-	get_Omega();
-	compute_Gamma();
-	compute_dEuler();
-	quadrotor.X0(13) = dEuler(2,0); // dpsi
+	// get_Omega();
+	// compute_Gamma();
+	// compute_dEuler();
+	// ugv.X0(13) = dEuler(2,0); // dpsi
 
-	bomt.eX0 = Eigen::MatrixXf::Zero(18,1);
-	for (int i = 0; i < quadrotor.n; i++)
+	bomt.eX0 = Eigen::MatrixXf::Zero(ugv.n,1);
+	for (int i = 0; i < ugv.n; i++)
 	{
 		bomt.eX0(i,0) = pose[i];
 	}
 
-	// cout << "<FMPC> update_quadrotor_pose complete" << endl;
+	// cout << "<FMPC> update_ugv_pose complete" << endl;
 
 }
 
@@ -3506,9 +3943,9 @@ void F_MPC_UNCUT::find_closest_waypoint(float* xdiff, float* ydiff, float* zdiff
 	for(int i = 0; i < localPath.rows()-1; ++i)
 	{
 
-		(*xdiff) = quadrotor.X0(0) - localPath(i,0);
-		(*ydiff) = quadrotor.X0(1) - localPath(i,1);
-		(*zdiff) = quadrotor.X0(2) - localPath(i,2);
+		(*xdiff) = ugv.X0(0) - localPath(i,0);
+		(*ydiff) = ugv.X0(1) - localPath(i,1);
+		(*zdiff) = ugv.X0(2) - localPath(i,2);
 
 		if( (*xdiff)*(*xdiff) + (*ydiff)*(*ydiff) + (*zdiff)*(*zdiff) < min_norm )
 		{
@@ -3531,7 +3968,7 @@ void F_MPC_UNCUT::find_closest_waypoint(float* xdiff, float* ydiff, float* zdiff
 // find_new_waypoint: this function is used to determine what the 
 // next waypoint in the path should be
 // INPUTS: pointer to an Eigen::MatrixXf capturing the goal,
-// pointer to floats captuing the difference between the quadrotor's
+// pointer to floats captuing the difference between the ugv's
 // position and the goal
 // OUTPUTS: none 
 void F_MPC_UNCUT::find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* ydiff, float* zdiff)
@@ -3544,17 +3981,17 @@ void F_MPC_UNCUT::find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* 
 	bool foundPoint = false;
 	float norm_diff;
 
-	// Integers capturing the voxel corresponding to the quadrotor's position
+	// Integers capturing the voxel corresponding to the ugv's position
 	int x,y,z,dx,dy,dz,nnwp, sx, sy, sz, exy, exz, ezy, ax, ay, az, bx, by, bz;
 
-	// Compute a vector storing the orientation of the quadrotor's focal axis
-	quad_dir(0) = cos(quadrotor.X0(12)); 
-	quad_dir(1) = sin(quadrotor.X0(12)); 
+	// Compute a vector storing the orientation of the ugv's focal axis
+	quad_dir(0) = cos(ugv.X0(12)); 
+	quad_dir(1) = sin(ugv.X0(12)); 
 	quad_dir(2) = 0.0; 
 
-	(*xdiff) = quadrotor.X0(0) - localPath(local_traj_iterator,0);
-	(*ydiff) = quadrotor.X0(1) - localPath(local_traj_iterator,1);
-	(*zdiff) = quadrotor.X0(2) - localPath(local_traj_iterator,2);
+	(*xdiff) = ugv.X0(0) - localPath(local_traj_iterator,0);
+	(*ydiff) = ugv.X0(1) - localPath(local_traj_iterator,1);
+	(*zdiff) = ugv.X0(2) - localPath(local_traj_iterator,2);
 	norm_diff = sqrt((*xdiff)*(*xdiff) + (*ydiff)*(*ydiff) + (*zdiff)*(*zdiff));
 
 	// Search for the first point of the a* output that's 'goal_tolerance' away from the current position
@@ -3565,12 +4002,12 @@ void F_MPC_UNCUT::find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* 
 	for(; local_traj_iterator < localPath.rows() - 1; local_traj_iterator++)
 	{
 
-		(*xdiff) = quadrotor.X0(0) - localPath(local_traj_iterator,0);
-		(*ydiff) = quadrotor.X0(1) - localPath(local_traj_iterator,1);
-		(*zdiff) = quadrotor.X0(2) - localPath(local_traj_iterator,2);
+		(*xdiff) = ugv.X0(0) - localPath(local_traj_iterator,0);
+		(*ydiff) = ugv.X0(1) - localPath(local_traj_iterator,1);
+		(*zdiff) = ugv.X0(2) - localPath(local_traj_iterator,2);
 
-		// yawdiff = atan2( plannedPath(local_traj_iterator,0) - quadrotor.X0(0), plannedPath(local_traj_iterator,1) - quadrotor.X0(1) );
-		yawdiff = atan2( localPath(local_traj_iterator,0) - quadrotor.X0(0), localPath(local_traj_iterator,1) - quadrotor.X0(1) );
+		// yawdiff = atan2( plannedPath(local_traj_iterator,0) - ugv.X0(0), plannedPath(local_traj_iterator,1) - ugv.X0(1) );
+		yawdiff = atan2( localPath(local_traj_iterator,0) - ugv.X0(0), localPath(local_traj_iterator,1) - ugv.X0(1) );
 
 		yaw_des_dir(0) = cos(yawdiff);
 		yaw_des_dir(1) = sin(yawdiff);
@@ -3582,9 +4019,9 @@ void F_MPC_UNCUT::find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* 
 		if ( norm_diff > mpc_params.goal_tolerance )
 		{
 
-			x = floor(quadrotor.X0(0)*5.0 + 0.5);
-			y = floor(quadrotor.X0(1)*5.0 + 0.5);
-			z = floor(quadrotor.X0(2)*5.0 + 0.5);
+			x = floor(ugv.X0(0)*5.0 + 0.5);
+			y = floor(ugv.X0(1)*5.0 + 0.5);
+			z = floor(ugv.X0(2)*5.0 + 0.5);
 
 			// Record the difference in position of the camera and sample point
 			dx = (int) (floor(localPath(local_traj_iterator,0)*5.0 + 0.5) - x);
@@ -3802,7 +4239,7 @@ void F_MPC_UNCUT::find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* 
 			n2 = n0.cross(n1); 
 
 			// Find a point on the plane
-			p_temp = quadrotor.X0.head(3) + n2*plane_size + n1*plane_size + n0*d;
+			p_temp = ugv.X0.head(3) + n2*plane_size + n1*plane_size + n0*d;
 			p.col(j) = Eigen::Map<Eigen::MatrixXf>(p_temp.data(),3,1);
 
 		} // for (int j = 0; j < collisionConstraints.rows(); j++)
@@ -3811,8 +4248,8 @@ void F_MPC_UNCUT::find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* 
 		// Iterate over the number of constraints
 		for (int j = 0; j < collisionConstraints.rows(); j++)
 		{
-			// Project the quadrotor point onto each constraint
-			v = quadrotor.X0.head(3) - Eigen::Map<Eigen::Vector3f>(p.col(j).data(),3);
+			// Project the ugv point onto each constraint
+			v = ugv.X0.head(3) - Eigen::Map<Eigen::Vector3f>(p.col(j).data(),3);
 			
 			if (abs(collisionConstraints.block(j,0,1,3).norm()) < 10e-6)
 			{
@@ -3824,10 +4261,10 @@ void F_MPC_UNCUT::find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* 
 			n0(2) = collisionConstraints(j,2);
 			dist = v.dot(-n0);
 
-			proj_quad_on_plane_temp = quadrotor.X0.head(3) + dist*n0;
+			proj_quad_on_plane_temp = ugv.X0.head(3) + dist*n0;
 			proj_quad_on_plane.col(j) = Eigen::Map<Eigen::MatrixXf>(proj_quad_on_plane_temp.data(),3,1);
 
-			// Find the vector connecting the goal to the quadrotor projected onto the constraint
+			// Find the vector connecting the goal to the ugv projected onto the constraint
 			difference_temp = goal_temp-proj_quad_on_plane_temp;
 			difference_temp.normalize();
 
@@ -3863,8 +4300,8 @@ void F_MPC_UNCUT::find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* 
 			// cout << "lam: " << lam << endl;
 
 			// Find a provisional goal point as the convex combination
-			// of the goal and quadrotor point
-			proj_goal = lam*goal_temp+(1-lam)*quadrotor.X0.head(3);
+			// of the goal and ugv point
+			proj_goal = lam*goal_temp+(1-lam)*ugv.X0.head(3);
 
 			// Indicate that we have not stopped checking the provisional
 			// goal for constraint adherence
@@ -3875,7 +4312,7 @@ void F_MPC_UNCUT::find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* 
 			{
 				
 				// Find vector pointing from the provisional goal
-				// to the quadrotor projected onto the plane
+				// to the ugv projected onto the plane
 				difference_temp = proj_goal-proj_quad_on_plane.col(j);
 				difference_temp.normalize();
 
@@ -3927,63 +4364,63 @@ bool closeEnough(const float& a, const float& b, const float& epsilon = std::num
     return (epsilon > std::abs(a - b));
 }
 
-void F_MPC_UNCUT::compute_Euler_angles(Eigen::Matrix3f* R, Eigen::Vector3f* Eul) 
-{
+// void F_MPC_UNCUT::compute_Euler_angles(Eigen::Matrix3f* R, Eigen::Vector3f* Eul) 
+// {
 
-    //check for gimbal lock
-    if (closeEnough((*R)(0,2), -1.0f)) 
-    {
+//     //check for gimbal lock
+//     if (closeEnough((*R)(0,2), -1.0f)) 
+//     {
 
-        (*Eul)(0) = 0; //gimbal lock, value of x doesn't matter
-        (*Eul)(1) = M_PI / 2;
-        (*Eul)(2) = (*Eul)(0)+atan2((*R)(1,0), (*R)(2,0));
-        return;
+//         (*Eul)(0) = 0; //gimbal lock, value of x doesn't matter
+//         (*Eul)(1) = M_PI / 2;
+//         (*Eul)(2) = (*Eul)(0)+atan2((*R)(1,0), (*R)(2,0));
+//         return;
 
-    } 
-    else if (closeEnough((*R)(0,2), 1.0f)) 
-    {
+//     } 
+//     else if (closeEnough((*R)(0,2), 1.0f)) 
+//     {
 
-        (*Eul)(0) = 0;
-        (*Eul)(1) = -M_PI / 2;
-        (*Eul)(2) = -(*Eul)(0)+atan2(-(*R)(1,0), -(*R)(1,0));
-        return;
+//         (*Eul)(0) = 0;
+//         (*Eul)(1) = -M_PI / 2;
+//         (*Eul)(2) = -(*Eul)(0)+atan2(-(*R)(1,0), -(*R)(1,0));
+//         return;
 
-    } 
-    else 
-    { 
+//     } 
+//     else 
+//     { 
 
-    	//two solutions exist
-        float x1 = -asin((*R)(0,2));
-        float x2 = M_PI - x1;
+//     	//two solutions exist
+//         float x1 = -asin((*R)(0,2));
+//         float x2 = M_PI - x1;
 
-        float y1 = atan2((*R)(1,2) / cos(x1), (*R)(2,2) / cos(x1));
-        float y2 = atan2((*R)(1,2) / cos(x2), (*R)(2,2) / cos(x2));
+//         float y1 = atan2((*R)(1,2) / cos(x1), (*R)(2,2) / cos(x1));
+//         float y2 = atan2((*R)(1,2) / cos(x2), (*R)(2,2) / cos(x2));
 
-        float z1 = atan2((*R)(0,1) / cos(x1), (*R)(0,0) / cos(x1));
-        float z2 = atan2((*R)(0,1) / cos(x2), (*R)(0,0) / cos(x2));
+//         float z1 = atan2((*R)(0,1) / cos(x1), (*R)(0,0) / cos(x1));
+//         float z2 = atan2((*R)(0,1) / cos(x2), (*R)(0,0) / cos(x2));
 
-        //choose one solution to return
-        //for example the "shortest" rotation
-        if ((std::abs(x1) + std::abs(y1) + std::abs(z1)) <= (std::abs(x2) + std::abs(y2) + std::abs(z2))) 
-        {
-        	(*Eul)(0) = x1;
-        	(*Eul)(1) = y1;
-        	(*Eul)(2) = z1;
-            return;
-        } 
-        else 
-        {
-        	(*Eul)(0) = x2;
-        	(*Eul)(1) = y2;
-        	(*Eul)(2) = z2;
-            return;
-        }
+//         //choose one solution to return
+//         //for example the "shortest" rotation
+//         if ((std::abs(x1) + std::abs(y1) + std::abs(z1)) <= (std::abs(x2) + std::abs(y2) + std::abs(z2))) 
+//         {
+//         	(*Eul)(0) = x1;
+//         	(*Eul)(1) = y1;
+//         	(*Eul)(2) = z1;
+//             return;
+//         } 
+//         else 
+//         {
+//         	(*Eul)(0) = x2;
+//         	(*Eul)(1) = y2;
+//         	(*Eul)(2) = z2;
+//             return;
+//         }
 
-    }
+//     }
 
-    cout << "<FMPC> compute_Euler_angles complete" << endl;
+//     cout << "<FMPC> compute_Euler_angles complete" << endl;
 
-} // void F_MPC_UNCUT::compute_Euler_angles(const Eigen::Matrix3f& R) 
+// } // void F_MPC_UNCUT::compute_Euler_angles(const Eigen::Matrix3f& R) 
 
 
 void F_MPC_UNCUT::get_trajectory_goal()
@@ -3996,8 +4433,8 @@ void F_MPC_UNCUT::get_trajectory_goal()
 
 		for (int i = 0; i < mpc_params.nu_X; i++)
 		{
-			prev_seg_eig_X[i] = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-			prev_seg_eig_U[i] = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
+			prev_seg_eig_X[i] = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+			prev_seg_eig_U[i] = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
 		}
 
 		// find new goal waypoint
@@ -4029,7 +4466,7 @@ void F_MPC_UNCUT::get_trajectory_goal()
 		// 	// cout << "Heading from rotm: " << euler(2) << endl;
 		// }
 
-		goal(3,0) = atan2(goal(0,0)-quadrotor.X0(0), goal(1,0)-quadrotor.X0(1));
+		goal(3,0) = atan2(goal(0,0)-ugv.X0(0), goal(1,0)-ugv.X0(1));
 		
 		prev_plannedPath = Eigen::MatrixXf::Zero(localPath.rows(),localPath.cols());
 		prev_plannedPath = localPath;
@@ -4037,7 +4474,7 @@ void F_MPC_UNCUT::get_trajectory_goal()
 
 		if (sqrt(xdiff*xdiff + ydiff*ydiff) < 0.313)
 		{
-			goal(3,0) = quadrotor.X0(12);
+			goal(3,0) = ugv.X0(12);
 		}
 
 		remaining_segments = localPath.rows() - traj_iterator;
@@ -4046,10 +4483,10 @@ void F_MPC_UNCUT::get_trajectory_goal()
 	}
 	else
 	{
-		goal(0,0) = quadrotor.X0(0);
-		goal(1,0) = quadrotor.X0(1);
-		goal(2,0) = quadrotor.X0(2);
-		goal(3,0) = quadrotor.X0(12);
+		goal(0,0) = ugv.X0(0);
+		goal(1,0) = ugv.X0(1);
+		goal(2,0) = ugv.X0(2);
+		goal(3,0) = ugv.X0(12);
 		remaining_segments = 1;
 	}
 
@@ -4067,14 +4504,14 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 	cout << message << endl;
 	log_f_mpc.writeToLog(message);
 
-	Eigen::MatrixXf seg_state = Eigen::MatrixXf::Zero(quadrotor.n,1);
-	Eigen::MatrixXf seg_control = Eigen::MatrixXf::Zero(quadrotor.m,1);
+	Eigen::MatrixXf seg_state = Eigen::MatrixXf::Zero(ugv.n,1);
+	Eigen::MatrixXf seg_control = Eigen::MatrixXf::Zero(ugv.m,1);
 	Eigen::MatrixXf temp_goal_pos = Eigen::MatrixXf::Zero(1,3);
-	Eigen::MatrixXf eig_X = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-	Eigen::MatrixXf prev_eig_X = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-	Eigen::MatrixXf eig_U = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-	Eigen::MatrixXf prev_eig_U = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
-	Eigen::VectorXf temporary_pose = Eigen::VectorXf::Zero(quadrotor.n);
+	Eigen::MatrixXf eig_X = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+	Eigen::MatrixXf prev_eig_X = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+	Eigen::MatrixXf eig_U = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+	Eigen::MatrixXf prev_eig_U = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
+	Eigen::VectorXf temporary_pose = Eigen::VectorXf::Zero(ugv.n);
 	Eigen::MatrixXf prev_goal = Eigen::MatrixXf::Zero(4,1);
 	// Eigen::MatrixXf segmentGoals = Eigen::MatrixXf::Zero(0,4*mpc_params.nu_X);
 	segmentGoals = Eigen::MatrixXf::Zero(0,4*mpc_params.nu_X);
@@ -4097,13 +4534,13 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 	for (int i = 0; i < mpc_params.nu_X; i++)
 	{
-		full_trajectory[i] = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-		prevfull_trajectory[i] = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-		full_trajectory_interf[i] = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-		full_policy[i] = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
+		full_trajectory[i] = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+		prevfull_trajectory[i] = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+		full_trajectory_interf[i] = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+		full_policy[i] = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
 		full_attitude[i] = Eigen::MatrixXf::Zero(2,mpc_params.T);
-		prev_seg_eig_X[i] = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-		prev_seg_eig_U[i] = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
+		prev_seg_eig_X[i] = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+		prev_seg_eig_U[i] = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
 	}
 	
 	while(!firstPassComplete)
@@ -4150,8 +4587,8 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 
 			// Store the pose
-			quadrotor.prevX0 = quadrotor.X0;
-			update_quadrotor_pose();
+			ugv.prevX0 = ugv.X0;
+			update_ugv_pose();
 
 			if (firstPassComplete)
 			{
@@ -4163,20 +4600,20 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 					pauseTime_end = std::chrono::high_resolution_clock::now();
 					// check if the pose has changed enough
-					if ( (quadrotor.prevX0.head(3) - quadrotor.X0.head(3)).norm() > 0.6 )
+					if ( (ugv.prevX0.head(3) - ugv.X0.head(3)).norm() > 0.6 )
 					{
 						// If so, allow to continue
 						break;
 					}	
 					
-					update_quadrotor_pose();
+					update_ugv_pose();
 					pauseTime = pauseTime_end - pauseTime_start; 
 
 					// Check if enough time has passed
 					if (pauseTime.count() > mpc_params.delta_t*mpc_params.T)
 					{
 						// If so, allow continue
-						update_quadrotor_pose();
+						update_ugv_pose();
 						break;
 					}
 
@@ -4186,7 +4623,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 		pthread_mutex_unlock(&pose_lock);
 
-		temporary_pose = quadrotor.X0;
+		temporary_pose = ugv.X0;
 		prev_goal = goal;
 
 		while(pthread_mutex_trylock(&path_lock))
@@ -4206,9 +4643,9 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 			else
 			{
 				localPath = Eigen::MatrixXf::Zero(1,3);
-				localPath(0,0) = quadrotor.X0(0);
-				localPath(0,1) = quadrotor.X0(1);
-				localPath(0,2) = quadrotor.X0(2);
+				localPath(0,0) = ugv.X0(0);
+				localPath(0,1) = ugv.X0(1);
+				localPath(0,2) = ugv.X0(2);
 			}
 
 		pthread_mutex_unlock(&path_lock);
@@ -4264,8 +4701,8 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 		int ii = 0;
 		int iii = 0;
 
-		// if ((Eigen::Map<Eigen::MatrixXf>(quadrotor.X0.head(3).data(),1,3) ).norm() < 0.6)
-		// if ( (Eigen::Map<Eigen::MatrixXf>(quadrotor.X0.head(3).data(),1,3) - localPath.row(localPath.rows()-1)).norm() < 0.6)
+		// if ((Eigen::Map<Eigen::MatrixXf>(ugv.X0.head(3).data(),1,3) ).norm() < 0.6)
+		// if ( (Eigen::Map<Eigen::MatrixXf>(ugv.X0.head(3).data(),1,3) - localPath.row(localPath.rows()-1)).norm() < 0.6)
 		// {
 
 		while(pthread_mutex_trylock(&trajectory_lock))
@@ -4291,12 +4728,12 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 					cout << "goal: " << goal.transpose() << endl;
 
-					eig_X = Eigen::MatrixXf::Zero(quadrotor.n,mpc_params.T);
-					eig_U = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
+					eig_X = Eigen::MatrixXf::Zero(ugv.n,mpc_params.T);
+					eig_U = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
 
 					for( int i = 0; i < mpc_params.T; i++ )
 					{
-						eig_X.col(i) = quadrotor.X0;
+						eig_X.col(i) = ugv.X0;
 						eig_X.block(3,i,9,1)*=0;
 						eig_X.block(13,i,1,1)*=0;
 						eig_U.col(i) = Eigen::MatrixXf::Zero(4,1);
@@ -4318,7 +4755,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 						for (int j = 0; j < mpc_params.T; j++)
 						{
-							g_barrier(j,0) = (quadrotor.phi_max*quadrotor.phi_max)*(quadrotor.theta_max*quadrotor.theta_max)*quadrotor.mass*9.81*0.25;
+							g_barrier(j,0) = (ugv.phi_max*ugv.phi_max)*(ugv.theta_max*ugv.theta_max)*ugv.mass*9.81*0.25;
 						}
 
 						update_weighting_matrices(ii, 1);
@@ -4338,7 +4775,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 					pthread_mutex_unlock(&constraint_lock);
 
 					// If the goal for the first segment is far away, set the goal to the closest point in the path
-					if (( quadrotor.X0(0) - goal(0,0) )*( quadrotor.X0(0) - goal(0,0) ) + ( quadrotor.X0(1) - goal(1,0) )*( quadrotor.X0(1) - goal(1,0) ) + ( quadrotor.X0(2) - goal(2,0) )*( quadrotor.X0(2) - goal(2,0) ) > 2.0)
+					if (( ugv.X0(0) - goal(0,0) )*( ugv.X0(0) - goal(0,0) ) + ( ugv.X0(1) - goal(1,0) )*( ugv.X0(1) - goal(1,0) ) + ( ugv.X0(2) - goal(2,0) )*( ugv.X0(2) - goal(2,0) ) > 2.0)
 					{				
 					
 						float xdifftemp0,ydifftemp0,zdifftemp0;
@@ -4364,7 +4801,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 					}
 
 					// cout << "segment: " << ii << endl;
-					// cout << "position: " << quadrotor.X0(0) << ", " << quadrotor.X0(1)  << ", " << quadrotor.X0(2) << " goal: " << goal.transpose() << endl;
+					// cout << "position: " << ugv.X0(0) << ", " << ugv.X0(1)  << ", " << ugv.X0(2) << " goal: " << goal.transpose() << endl;
 
 					// cout << "eig_X: " << endl;
 					// cout << eig_X << endl;
@@ -4373,22 +4810,22 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 					// cout << "traj_iterator: " << traj_iterator <<endl;
 					// cout << "goal: " << goal << endl;
 					// cout << "robs: " << r_obs.transpose() << endl;
-					// cout << "eig_Fx_hard: " << endl << quadrotor.eig_Fx_hard << endl;
-					// cout << "eig_x_hard_bounds: " << endl << quadrotor.eig_x_hard_bounds << endl;
-					// cout << "eig_Fu_hard: " << endl << quadrotor.eig_Fu_hard << endl;
-					// cout << "eig_u_hard_bounds: " << endl << quadrotor.eig_u_hard_bounds << endl;
+					// cout << "eig_Fx_hard: " << endl << ugv.eig_Fx_hard << endl;
+					// cout << "eig_x_hard_bounds: " << endl << ugv.eig_x_hard_bounds << endl;
+					// cout << "eig_Fu_hard: " << endl << ugv.eig_Fu_hard << endl;
+					// cout << "eig_u_hard_bounds: " << endl << ugv.eig_u_hard_bounds << endl;
 					// cout << "g_barrier: " << endl << g_barrier << endl;
 
 					// perform fmpc, check if it was successful
 					intermediate_success = fmpcsolve(&eig_X, &eig_U, ii);
-					// for (int ji = 0; ji < quadrotor.eig_Fx_hard.rows(); ji++)
+					// for (int ji = 0; ji < ugv.eig_Fx_hard.rows(); ji++)
 					// {
 					// 	for (int ij = 0; ij < mpc_params.T; ij++)
 					// 	{
-					// 		if (quadrotor.eig_Fx_hard.row(ji)*eig_X.col(ij) >= quadrotor.eig_x_hard_bounds(ji))
+					// 		if (ugv.eig_Fx_hard.row(ji)*eig_X.col(ij) >= ugv.eig_x_hard_bounds(ji))
 					// 		{
-					// 			cout << "Constraint " << ji << " step " << ij << ": " <<  quadrotor.eig_Fx_hard.row(ji)*eig_X.col(ij) << ">=" << quadrotor.eig_x_hard_bounds(ji) << endl;
-					// 			cout << "quadrotor.eig_Fx_hard: " << quadrotor.eig_Fx_hard.block(ji,0,1,quadrotor.eig_Fx_hard.cols()) << endl;
+					// 			cout << "Constraint " << ji << " step " << ij << ": " <<  ugv.eig_Fx_hard.row(ji)*eig_X.col(ij) << ">=" << ugv.eig_x_hard_bounds(ji) << endl;
+					// 			cout << "ugv.eig_Fx_hard: " << ugv.eig_Fx_hard.block(ji,0,1,ugv.eig_Fx_hard.cols()) << endl;
 					// 		}
 					// 	}
 					// }
@@ -4402,7 +4839,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 						// posterior computation of roll, pitch angles, and thrust for a particular control policy
 						// and evaluate g_barrier
 
-						g_barrier_violation = compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(&eig_X, &eig_U);
+						// g_barrier_violation = compute_yaw_vx_for_lambda_k_and_g_barrier(&eig_X, &eig_U);
 						
 						if ((eig_X.block(0,mpc_params.T-1,3,1) - goal.block(0,0,3,1)).norm() > 2.0)
 						{
@@ -4410,26 +4847,26 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 							// trajectory_plan_success = false;
 						}
 						
-						if (g_barrier_violation)
-						{
-							cout << " g_barrier violated" << endl;
-							// if violation, failure, adjust weighting matrices
-							update_weighting_matrices(ii, 1);
-							trajectory_plan_success = false;
-						} 
-						else
-						{
-							cout << " g_barrier ok" << endl;
-							// if no violation, success, continue to next segment
-							trajectory_plan_success = true;
-							u_k_nuX[ii] = u_k;
-							v_k_nuX[ii] = v_k; 
-							du1_k_nuX[ii] = du1_k;
-							ddu1_k_nuX[ii] = ddu1_k;
-							lambda_k_nuX[ii] = lambda_k;
-							zeta_k_nuX[ii] = zeta_k;
-							T_k_nuX[ii] = quadrotor.T_k;
-						}
+						// if (g_barrier_violation)
+						// {
+						// 	cout << " g_barrier violated" << endl;
+						// 	// if violation, failure, adjust weighting matrices
+						// 	update_weighting_matrices(ii, 1);
+						// 	trajectory_plan_success = false;
+						// } 
+						// else
+						// {
+						// 	cout << " g_barrier ok" << endl;
+						// 	// if no violation, success, continue to next segment
+						// 	trajectory_plan_success = true;
+						// 	u_k_nuX[ii] = u_k;
+						// 	v_k_nuX[ii] = v_k; 
+						// 	du1_k_nuX[ii] = du1_k;
+						// 	ddu1_k_nuX[ii] = ddu1_k;
+						// 	lambda_k_nuX[ii] = lambda_k;
+						// 	zeta_k_nuX[ii] = zeta_k;
+						// 	T_k_nuX[ii] = ugv.T_k;
+						// }
 					}
 					else
 					{
@@ -4450,8 +4887,8 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 					{
 						for (int j = 0; j < mpc_params.T; j++)
 						{
-							eig_X.block(0,j,14,1) = prev_eig_X.block(0,mpc_params.T-1,quadrotor.n,1);
-							eig_U.col(j) = prev_eig_U.block(0,mpc_params.T-1,quadrotor.m,1);
+							eig_X.block(0,j,14,1) = prev_eig_X.block(0,mpc_params.T-1,ugv.n,1);
+							eig_U.col(j) = prev_eig_U.block(0,mpc_params.T-1,ugv.m,1);
 							// eig_U.col(j) = Eigen::MatrixXf::Zero(4,1);
 						}
 						eig_X.block(3,0,9,mpc_params.T) *= 0;
@@ -4531,8 +4968,8 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 										goal(0,0) = localPath(shifted_traj_iterator,0);
 										goal(1,0) = localPath(shifted_traj_iterator,1);
 										goal(2,0) = localPath(shifted_traj_iterator,2);			
-										// goal(3,0) = atan2(goal(0,0)- quadrotor.X0(0), goal(1,0) - quadrotor.X0(1)); 	
-										goal(3,0) = atan2( goal(1,0) - quadrotor.X0(1), goal(0,0)- quadrotor.X0(0)); 	
+										// goal(3,0) = atan2(goal(0,0)- ugv.X0(0), goal(1,0) - ugv.X0(1)); 	
+										goal(3,0) = atan2( goal(1,0) - ugv.X0(1), goal(0,0)- ugv.X0(0)); 	
 										break;
 									}
 									else
@@ -4540,8 +4977,8 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 										goal(0,0) = localPath(0,0);
 										goal(1,0) = localPath(0,1);
 										goal(2,0) = localPath(0,2);	
-										// goal(3,0) = atan2(goal(0,0)- quadrotor.X0(0), goal(1,0) - quadrotor.X0(1)); 	
-										goal(3,0) = atan2( goal(1,0) - quadrotor.X0(1), goal(0,0)- quadrotor.X0(0)); 	
+										// goal(3,0) = atan2(goal(0,0)- ugv.X0(0), goal(1,0) - ugv.X0(1)); 	
+										goal(3,0) = atan2( goal(1,0) - ugv.X0(1), goal(0,0)- ugv.X0(0)); 	
 										break;
 									}
 								}
@@ -4565,7 +5002,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 						{
 							for (int j = 0; j < mpc_params.T; j++)
 							{
-								g_barrier(j,0) = (quadrotor.phi_max*quadrotor.phi_max)*(quadrotor.theta_max*quadrotor.theta_max)*quadrotor.mass*9.81*0.25;
+								g_barrier(j,0) = (ugv.phi_max*ugv.phi_max)*(ugv.theta_max*ugv.theta_max)*ugv.mass*9.81*0.25;
 							}
 
 							r_obs = temp_goal_pos.transpose();
@@ -4615,23 +5052,23 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 					// cout << "eig_U: " << endl;
 					// cout << eig_U << endl;
 					// cout << "traj_iterator: " << traj_iterator <<endl;
-					// cout << "start: " << quadrotor.X0.head(3).transpose() << endl;					
+					// cout << "start: " << ugv.X0.head(3).transpose() << endl;					
 					// cout << "goal: " << goal << endl;
 					// cout << "robs: " << r_obs.transpose() << endl;
-					// cout << "eig_Fx_hard: " << endl << quadrotor.eig_Fx_hard << endl;
-					// cout << "eig_x_hard_bounds: " << endl << quadrotor.eig_x_hard_bounds << endl;
-					// cout << "eig_Fu_hard: " << endl << quadrotor.eig_Fu_hard << endl;
-					// cout << "eig_u_hard_bounds: " << endl << quadrotor.eig_u_hard_bounds << endl;
+					// cout << "eig_Fx_hard: " << endl << ugv.eig_Fx_hard << endl;
+					// cout << "eig_x_hard_bounds: " << endl << ugv.eig_x_hard_bounds << endl;
+					// cout << "eig_Fu_hard: " << endl << ugv.eig_Fu_hard << endl;
+					// cout << "eig_u_hard_bounds: " << endl << ugv.eig_u_hard_bounds << endl;
 					// cout << "g_barrier: " << endl << g_barrier << endl;
 
 					// perform fmpc, check if it was successful
 					intermediate_success = fmpcsolve(&eig_X, &eig_U, ii);
 					cout << "fmpc success: " << intermediate_success << endl;
 
-					// cout << "Fx: " << endl << quadrotor.eig_Fx_hard.block(4,12,2,1) << endl;
+					// cout << "Fx: " << endl << ugv.eig_Fx_hard.block(4,12,2,1) << endl;
 					// cout << "eig_x_pos: " << endl << eig_X.block(12,0,1,mpc_params.T) << endl;
-					// cout << "FxX: " << endl << quadrotor.eig_Fx_hard.block(4,12,2,1)*eig_X.block(12,0,1,mpc_params.T) << endl;
-					// cout << "fx: " << endl << quadrotor.eig_x_hard_bounds.block(4,0,2,mpc_params.T) << endl;
+					// cout << "FxX: " << endl << ugv.eig_Fx_hard.block(4,12,2,1)*eig_X.block(12,0,1,mpc_params.T) << endl;
+					// cout << "fx: " << endl << ugv.eig_x_hard_bounds.block(4,0,2,mpc_params.T) << endl;
 
 					if (intermediate_success)
 					{
@@ -4642,29 +5079,29 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 						// posterior computation of roll, pitch, and thrust for a particular control policy,
 						// and evaluate g_barrier
-						g_barrier_violation = compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(&eig_X, &eig_U);
+						// g_barrier_violation = compute_yaw_vx_for_lambda_k_and_g_barrier(&eig_X, &eig_U);
 						
-						if (g_barrier_violation)
-						{
-							// cout << "g_barrier < 0, external constraints violated." << endl;
-							// if violation, failure, adjust weighting matrices
-							cout << "g barrier violated" << endl;						
-							update_weighting_matrices(ii, 1);
-							trajectory_plan_success = false;
-						} 
-						else
-						{
-							// if no violation, success, continue to next segment
-							trajectory_plan_success = true;
-							u_k_nuX[ii] = u_k; // u_k is the same as zeta_k
-							v_k_nuX[ii] = v_k; 
-							du1_k_nuX[ii] = du1_k;
-							ddu1_k_nuX[ii] = ddu1_k;
-							lambda_k_nuX[ii] = lambda_k;
-							zeta_k_nuX[ii] = zeta_k;
-							T_k_nuX[ii] = quadrotor.T_k;
-							cout << "g barrier ok" << endl;
-						}
+						// if (g_barrier_violation)
+						// {
+						// 	// cout << "g_barrier < 0, external constraints violated." << endl;
+						// 	// if violation, failure, adjust weighting matrices
+						// 	cout << "g barrier violated" << endl;						
+						// 	update_weighting_matrices(ii, 1);
+						// 	trajectory_plan_success = false;
+						// } 
+						// else
+						// {
+						// 	// if no violation, success, continue to next segment
+						// 	trajectory_plan_success = true;
+						// 	u_k_nuX[ii] = u_k; // u_k is the same as zeta_k
+						// 	v_k_nuX[ii] = v_k; 
+						// 	du1_k_nuX[ii] = du1_k;
+						// 	ddu1_k_nuX[ii] = ddu1_k;
+						// 	lambda_k_nuX[ii] = lambda_k;
+						// 	zeta_k_nuX[ii] = zeta_k;
+						// 	T_k_nuX[ii] = ugv.T_k;
+						// 	cout << "g barrier ok" << endl;
+						// }
 
 					}
 					else
@@ -4712,7 +5149,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 							for (int j = 0; j < mpc_params.T; j++)
 							{
-								eig_X.col(j) = quadrotor.X0;
+								eig_X.col(j) = ugv.X0;
 								eig_X.block(3,0,9,j)*=0;  
 								eig_X.block(13,0,1,j)*=0;  
 								eig_U.col(j) = Eigen::MatrixXf::Zero(4,1);
@@ -4743,7 +5180,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 							{
 								eig_X.col(j) = prev_seg_eig_X[ii-1].col(mpc_params.T-1);
 								// eig_U.col(j) = prev_seg_eig_U[ii-1].col(mpc_params.T-1);
-								// eig_X.col(j) = quadrotor.X0;  
+								// eig_X.col(j) = ugv.X0;  
 								eig_U.col(j) = Eigen::MatrixXf::Zero(4,1);
 							}
 
@@ -4764,7 +5201,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 						}
 
-						// eig_X.block(2,0,1,mpc_params.T) = Eigen::MatrixXf::Ones(1,mpc_params.T)*quadrotor.X0(2);
+						// eig_X.block(2,0,1,mpc_params.T) = Eigen::MatrixXf::Ones(1,mpc_params.T)*ugv.X0(2);
 						badTraj = 1;
 						numFailures = 0;
 						firstSuccess = true;
@@ -4783,7 +5220,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 
 							for (int j = 0; j < mpc_params.T; j++)
 							{
-								eig_X.col(j) = quadrotor.X0;  
+								eig_X.col(j) = ugv.X0;  
 								eig_U.col(j) = Eigen::MatrixXf::Zero(4,1);
 							}
 
@@ -4824,10 +5261,10 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 				
 					full_trajectory[i].block(3,0,9,mpc_params.T) = Eigen::MatrixXf::Zero(9,mpc_params.T);
 					full_trajectory[i].block(13,0,1,mpc_params.T) = Eigen::MatrixXf::Zero(1,mpc_params.T);
-					full_policy[i].block(0,0,quadrotor.m,mpc_params.T) = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
+					full_policy[i].block(0,0,ugv.m,mpc_params.T) = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
 					u_k_nuX[i].block(0,0,1,mpc_params.T) = 9.81*Eigen::MatrixXf::Ones(1,mpc_params.T);
-					u_k_nuX[i].block(1,0,quadrotor.m-1,mpc_params.T) = Eigen::MatrixXf::Zero(quadrotor.m-1,mpc_params.T);
-					v_k_nuX[i].block(0,0,quadrotor.m,mpc_params.T) = Eigen::MatrixXf::Zero(quadrotor.m,mpc_params.T);
+					u_k_nuX[i].block(1,0,ugv.m-1,mpc_params.T) = Eigen::MatrixXf::Zero(ugv.m-1,mpc_params.T);
+					v_k_nuX[i].block(0,0,ugv.m,mpc_params.T) = Eigen::MatrixXf::Zero(ugv.m,mpc_params.T);
 					du1_k_nuX[i].block(0,0,1,mpc_params.T) = Eigen::MatrixXf::Zero(1,mpc_params.T);
 					ddu1_k_nuX[i].block(0,0,1,mpc_params.T) = Eigen::MatrixXf::Zero(1,mpc_params.T);
 					lambda_k_nuX[i] = full_policy[i];
@@ -4859,7 +5296,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 			}
 
 
-			// cout << "Plan #: " << numTrajectoryPlans << " Pos: " << quadrotor.X0.head(3).transpose() << endl;
+			// cout << "Plan #: " << numTrajectoryPlans << " Pos: " << ugv.X0.head(3).transpose() << endl;
 			// for (int i = 0; i < mpc_params.nu_X; i++)
 			// {
 			// 	cout << "Traj " << i << " - Goal: " << segmentGoals.block(numTrajectoryPlans-1,4*i,1,4) << endl << full_trajectory[i].block(0,0,3,mpc_params.T) << endl;
@@ -4899,40 +5336,40 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 					for (int kk = 0; kk < mpc_params.T; kk++)
 					{
 
-						for (int mm = 0; mm < quadrotor.n-1; mm++)
+						for (int mm = 0; mm < ugv.n-1; mm++)
 						{
 
 							log_f_mpc_data.writeToLog(to_string(full_trajectory[ll](mm,kk)) + ",",0);
 
 						}
 
-						log_f_mpc_data.writeToLog(to_string(full_trajectory[ll](quadrotor.n-1,kk)) + ",",1);
+						log_f_mpc_data.writeToLog(to_string(full_trajectory[ll](ugv.n-1,kk)) + ",",1);
 
 						log_f_mpc_policy_data.writeToLog(to_string(u_k_nuX[ll](0,kk)) + ",",0);
 						log_f_mpc_policy_data.writeToLog(to_string(du1_k_nuX[ll](0,kk)) + ",",0);
 											
-						for (int mm = 0; mm < quadrotor.m; mm++)
+						for (int mm = 0; mm < ugv.m; mm++)
 						{						
 						
 							log_f_mpc_policy_data.writeToLog(to_string(full_policy[ll](mm,kk)) + ",",0);
 						
 						}
 
-						for (int mm = 0; mm < quadrotor.m; mm++)
+						for (int mm = 0; mm < ugv.m; mm++)
 						{
 							log_f_mpc_policy_data.writeToLog(to_string(v_k_nuX[ll](mm,kk)) + ",",0);
 						}
 
-						for (int mm = 0; mm < quadrotor.m; mm++)
+						for (int mm = 0; mm < ugv.m; mm++)
 						{
 							log_f_mpc_policy_data.writeToLog(to_string(zeta_k_nuX[ll](mm,kk)) + ",",0);
 						}
 
-						for (int mm = 0; mm < quadrotor.m-1; mm++)
+						for (int mm = 0; mm < ugv.m-1; mm++)
 						{
 							log_f_mpc_policy_data.writeToLog(to_string(abs(T_k_nuX[ll](mm,kk))) + ",",0);
 						}
-						log_f_mpc_policy_data.writeToLog(to_string(abs(T_k_nuX[ll](quadrotor.m-1,kk))),1);
+						log_f_mpc_policy_data.writeToLog(to_string(abs(T_k_nuX[ll](ugv.m-1,kk))),1);
 
 
 					}
@@ -4982,7 +5419,7 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 void F_MPC_UNCUT::objective_function_value(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_number)
 {
 
-	if (mpc_params.P[segment_number].cols() != quadrotor.n+quadrotor.m || mpc_params.P[segment_number].rows() > 1000)
+	if (mpc_params.P[segment_number].cols() != ugv.n+ugv.m || mpc_params.P[segment_number].rows() > 1000)
 	{
 		cout << "Issue with the size of P at segment " << segment_number << ": " << mpc_params.P[segment_number].rows() << "x" << mpc_params.P[segment_number].cols() << endl;
 		return;
@@ -4991,7 +5428,7 @@ void F_MPC_UNCUT::objective_function_value(Eigen::MatrixXf* X, Eigen::MatrixXf* 
 	Eigen::MatrixXf* tildeR = new Eigen::MatrixXf[mpc_params.T];
 	Eigen::MatrixXf* tildeq = new Eigen::MatrixXf[mpc_params.T];
 	Eigen::MatrixXf* Zk = new Eigen::MatrixXf[mpc_params.T];
-	Eigen::MatrixXf goal_n = Eigen::MatrixXf::Zero(quadrotor.n,1);
+	Eigen::MatrixXf goal_n = Eigen::MatrixXf::Zero(ugv.n,1);
 	Eigen::MatrixXf ZkTRZk;
 	Eigen::MatrixXf ZfkT_Rf_Zfk;
 	Eigen::MatrixXf qTZk;
@@ -5018,22 +5455,22 @@ void F_MPC_UNCUT::objective_function_value(Eigen::MatrixXf* X, Eigen::MatrixXf* 
 	for (int i = 0; i < mpc_params.T-1; i++)
 	{
 
-		tildeR[i] = Eigen::MatrixXf::Zero(quadrotor.n+quadrotor.m,quadrotor.n+quadrotor.m);
-		tildeq[i] = Eigen::MatrixXf::Zero(quadrotor.n+quadrotor.m,1);
-		Zk[i] =  Eigen::MatrixXf::Zero(quadrotor.n+quadrotor.m,1);
+		tildeR[i] = Eigen::MatrixXf::Zero(ugv.n+ugv.m,ugv.n+ugv.m);
+		tildeq[i] = Eigen::MatrixXf::Zero(ugv.n+ugv.m,1);
+		Zk[i] =  Eigen::MatrixXf::Zero(ugv.n+ugv.m,1);
 		
-		tildeR[i].block(0,0,quadrotor.n,quadrotor.n) = mpc_params.eig_R_rk[i]; 
-		tildeR[i].block(0,quadrotor.n,quadrotor.n,quadrotor.m) = mpc_params.eig_R_r_lambda_k[i]; 
-		tildeR[i].block(quadrotor.n,0,quadrotor.m,quadrotor.n) = mpc_params.eig_R_r_lambda_k[i].transpose();
-		tildeR[i].block(quadrotor.n,quadrotor.n,quadrotor.m,quadrotor.m) = mpc_params.eig_R_lambda; 
+		tildeR[i].block(0,0,ugv.n,ugv.n) = mpc_params.eig_R_rk[i]; 
+		tildeR[i].block(0,ugv.n,ugv.n,ugv.m) = mpc_params.eig_R_r_lambda_k[i]; 
+		tildeR[i].block(ugv.n,0,ugv.m,ugv.n) = mpc_params.eig_R_r_lambda_k[i].transpose();
+		tildeR[i].block(ugv.n,ugv.n,ugv.m,ugv.m) = mpc_params.eig_R_lambda; 
 
-		tildeq[i].block(0,0,quadrotor.n-2,1) = mpc_params.eig_q_rk[i];
+		tildeq[i].block(0,0,ugv.n-2,1) = mpc_params.eig_q_rk[i];
 		tildeq[i](12,0) = mpc_params.q_psi;
 		tildeq[i](13,0) = 0;
-		tildeq[i].block(quadrotor.n,0,quadrotor.m,1) = mpc_params.eig_q_lambda_k[i];
+		tildeq[i].block(ugv.n,0,ugv.m,1) = mpc_params.eig_q_lambda_k[i];
 
-		Zk[i].block(0,0,quadrotor.n,1) = (*X).col(i) - goal_n;
-		Zk[i].block(quadrotor.n,0,quadrotor.m,1) = (*U).col(i);
+		Zk[i].block(0,0,ugv.n,1) = (*X).col(i) - goal_n;
+		Zk[i].block(ugv.n,0,ugv.m,1) = (*U).col(i);
 
 		for (int ii = 0; ii < mpc_params.h[segment_number].rows(); ii++)
 		{
@@ -5073,6 +5510,7 @@ void F_MPC_UNCUT::objective_function_value(Eigen::MatrixXf* X, Eigen::MatrixXf* 
 
 } 
 
+#ifndef DISABLE_COMMUNICATION
 void F_MPC_UNCUT::communication_thread()
 {
 	
@@ -5583,13 +6021,13 @@ void F_MPC_UNCUT::communication_thread()
 					{
 						for (int i = 0; i < mpc_params.T; i++)
 						{
-							for (int k = 0; k < quadrotor.n; k++)
+							for (int k = 0; k < ugv.n; k++)
 							{					
 			
 								float temp = full_trajectory[j](k,i);
 								// full_trajectory_interf[j](k,i) = full_trajectory[j](k,i);
 								trajectory_send.append( boost::lexical_cast<string>(temp) );
-								if (j == mpc_params.nu_X-1 && i == mpc_params.T-1 && k == quadrotor.n-1)
+								if (j == mpc_params.nu_X-1 && i == mpc_params.T-1 && k == ugv.n-1)
 								{
 									trajectory_send.append("!");
 								}
@@ -5657,3 +6095,4 @@ void F_MPC_UNCUT::communication_thread()
 	}
 
 }
+#endif

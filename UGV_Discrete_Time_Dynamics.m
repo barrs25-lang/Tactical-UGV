@@ -5,7 +5,7 @@ fid = fopen('UGV_Dynamics_All.txt', 'w');
 for i =  1:length(Pvx)
     % Vehicle parameters
     m = 5;        % vehicle mass (kg)
-    Iz = 12;       % yaw moment of inertia (kg·m²)
+    Iz = .05;       % yaw moment of inertia (kg·m²)
     a = .15;        % CG to front axle (m)
     b = .15;        % CG to rear axle (m)
     Cf = 70;       % front cornering stiffness (N/rad)
@@ -47,6 +47,7 @@ for r = 1:size(Bd,1)
     fprintf(fid, '%s\n', num2str(Bd(r,:), '%-12.6f'));
 end
 
+Pvx = 10;
 fclose(fid);
 
 

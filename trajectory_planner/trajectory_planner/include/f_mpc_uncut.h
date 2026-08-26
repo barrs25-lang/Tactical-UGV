@@ -39,12 +39,13 @@ public:
 
 	F_MPC_UNCUT();
 	~F_MPC_UNCUT();
+	void load_params_yaml(const std::string& yaml_path);
 
 	void start();
 
 	void trajectory_planner_thread();
 	void communication_thread();
-	System quadrotor;
+	System ugv;
 	MPC_Params mpc_params;
 	Matrix_Set bomt;
 	Line_Search_Params lsp;
@@ -59,10 +60,11 @@ public:
 private:
 
 	static void quit_handler(int sig);
-	void get_Omega();
-	void compute_Gamma();
-	void compute_Gamma(float phi, float theta, float psi, Eigen::MatrixXf* Gamma_k);
-	void compute_dEuler();
+	void verifyDimensions() const;
+	// void get_Omega();
+	// void compute_Gamma();
+	// void compute_Gamma(float phi, float theta, float psi, Eigen::MatrixXf* Gamma_k);
+	// void compute_dEuler();
 	void find_closest_waypoint(float* xdiff, float* ydiff, float* zdiff, int* closest_traj_iterator);
 	void find_new_waypoint(Eigen::MatrixXf* goal, float* xdiff, float* ydiff, float* zdiff);
 	float fsat(Eigen::MatrixXf* arg);
@@ -70,7 +72,7 @@ private:
 	void compute_Euler_angles(Eigen::Matrix3f* R, Eigen::Vector3f* Eul);
 	void update_weighting_matrices(int segment_number, bool success);
 	void update_and_discount_weighting_matrices(int segment_number, bool success);
-	bool compute_roll_pitch_thrust_for_lambda_k_and_g_barrier(Eigen::MatrixXf* chi, Eigen::MatrixXf* lambda);
+	bool compute_yaw_vx_for_lambda_k_and_g_barrier(Eigen::MatrixXf* chi, Eigen::MatrixXf* lambda);
 	void get_Ginv_k(float phi, float theta, float psi, float u1, Eigen::MatrixXf* G_inv);	
 	void get_f_k(float phi, float theta, float psi, Eigen::MatrixXf* omega, float u1, float u1_dot, Eigen::MatrixXf* f, int i);
 	void compute_u1_u1dot(Eigen::MatrixXf* eig_U);
@@ -79,7 +81,7 @@ private:
 	void fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_number, int goalStride, int numFailures);
 	void fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_number, int goalStride);
 	static void sys(const rot_dyn_state &y, rot_dyn_state &ydot, double t);
-	void update_quadrotor_pose();
+	void update_ugv_pose();
 	void get_trajectory_goal();
 	void objective_function_value(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_number);
 	bool validates_collision_constraints();
@@ -107,7 +109,9 @@ private:
 	Eigen::MatrixXf plannedPathDifference;
 
 	// Stores the pose from the simulator
-	float pose[18], initialPose[18]; // x,y,z,dx,dy,dz,ddx,ddy,ddz,dddx,dddy,dddz,phi,theta,psi,omega1,omega2,omega3
+	float pose[6], initialPose[6]; // x,y,dx,dy,ddx,ddy
+	
+	//ddz,dddx,dddy,dddz,phi,theta,psi,omega1,omega2,omega3
 
 	// Gamma for rotational kinematic equation
 	Eigen::MatrixXf Gamma;
