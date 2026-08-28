@@ -13,10 +13,19 @@ include_directories(include)
 include_directories(../comm_server/src/client/include)
 
 # The main program
-add_executable(fmpc_uncut 
-	       	src/main/main.cpp 
+add_executable(fmpc_uncut
+	       	src/main/main.cpp
 		src/logging/logging.cpp
-		src/f_mpc_uncut/f_mpc_uncut.cpp
+		src/f_mpc_uncut/f_mpc_globals.cpp
+		src/f_mpc_uncut/f_mpc_model.cpp
+		src/f_mpc_uncut/f_mpc_feedback_linearization.cpp
+		src/f_mpc_uncut/f_mpc_solver.cpp
+		src/f_mpc_uncut/f_mpc_trajectory.cpp
+		src/f_mpc_uncut/f_mpc_communication.cpp
+		src/f_mpc_uncut/dnudz.cpp
+		src/f_mpc_uncut/gfgphp.cpp
+		src/f_mpc_uncut/rdrp.cpp
+		src/f_mpc_uncut/resdresp.cpp
 		src/line_search/line_search.cpp)
 
 target_link_libraries(fmpc_uncut PRIVATE ${CMAKE_DL_LIBS} X11 pthread Xrandr Xi dl)

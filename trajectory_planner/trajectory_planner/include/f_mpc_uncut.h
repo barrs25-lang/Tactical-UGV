@@ -196,4 +196,12 @@ private:
 
 };
 
+// Thread trampolines: bridge pthread's C-style function pointers to the
+// F_MPC_UNCUT instance methods that actually run the trajectory planner
+// and communication loops. Defined in f_mpc_trajectory.cpp / f_mpc_communication.cpp.
+void* start_communication_thread(F_MPC_UNCUT* f_mpc_uncut);
+void* start_comm_interface_thread(void *args);
+void* start_trajectory_planning_thread(F_MPC_UNCUT* f_mpc_uncut);
+void* start_traj_interface_thread(void *args);
+
 #endif

@@ -1,3 +1,4 @@
+#include "resdresp.h"
 #include "structures.h"
 
 /*

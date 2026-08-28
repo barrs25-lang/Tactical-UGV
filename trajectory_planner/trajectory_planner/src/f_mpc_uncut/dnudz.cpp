@@ -1,5 +1,6 @@
 
 // List include files
+#include "dnudz.h"
 #include "structures.h"
 
 // List namespaces
