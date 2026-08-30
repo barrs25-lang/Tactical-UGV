@@ -1,0 +1,10 @@
+TIME: 8.066e-05 - SYSTEM: <GOAL GENERATION> Starting goal generation.
+TIME: 0.0003455 - SYSTEM: <SIM-SOCKET THREAD> Started simulator socket thread.
+TIME: 0.0005452 - SYSTEM: <OCTREE THREAD> Opening parameter file: octree_params_default
+TIME: 0.0005548 - SYSTEM: <GOAL GENERATION> Threads started.
+TIME: 0.0005634 - SYSTEM: <OCTREE THREAD> Opened file: Parameter_Files/octree_params_default.txt
+TIME: 0.0005917 - SYSTEM: <OCTREE THREAD> Finished reading file: Parameter_Files/octree_params_default.txt
+TIME: 0.000611 - SYSTEM: <OCTREE THREAD> Closed file: Parameter_Files/octree_params_default.txt
+TIME: 0.0006713 - SYSTEM: <<SIM-SOCKET THREAD> Sent messages to simulator.
+TIME: 3.007 - SYSTEM: <<SIM-SOCKET THREAD> Received message from path planner.
+TIME: 7.779 - SYSTEM: <OCTREE THREAD> Octree thread begins.

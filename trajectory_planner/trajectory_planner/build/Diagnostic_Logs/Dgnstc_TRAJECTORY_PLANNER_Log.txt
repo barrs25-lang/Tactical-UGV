@@ -1,3 +1,0 @@
-TIME: 0.001288 - SYSTEM: <TRAJ-PLANNER-FMPC> Starting trajectory planner thread.
-TIME: 0.001421 - SYSTEM: <TRAJ-PLANNER-FMPC> Starting communication thread.
-TIME: 1.104 - SYSTEM: <TRAJ-PLANNER-FMPC> Entering trajectory planning loop.

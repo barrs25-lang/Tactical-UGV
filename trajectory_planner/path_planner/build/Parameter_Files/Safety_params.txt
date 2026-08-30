@@ -1,0 +1,9 @@
+// Danger Cone parameters
+// Angle [rad]: Angle made by the cone's axis and its boundary 
+1.0297
+// Danger Cylinder parameters
+// Radius [m]: Radius of cylinder.
+2.5
+// Height [m]: Total height of cylinder
+4.0
+
