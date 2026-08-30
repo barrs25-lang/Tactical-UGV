@@ -1,0 +1,9 @@
+// mu6: \kappa(\alpha)'s left boundary. See eqn 4 of "Autonomous Unmanned Aerial Vehicles and 
+// Tactical Mapping".
+0
+// mu7: \kappa(\alpha)'s right boundary. See eqn 4 of "Autonomous Unmanned Aerial Vehicles and 
+// Tactical Mapping".
+8
+// mu8: \kappa(\alpha)'s minimum when \alpha = (mu1+mu2)/2. See eqn 4 of "Autonomous Unmanned 
+// Aerial Vehicles and Tactical Mapping".
+0.1

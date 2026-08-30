@@ -1,0 +1,12 @@
+// Map to client1 frequency
+10
+// Pose to client1 frequency
+25
+// Goal to client1 frequency
+5
+// Path to client1 frequency
+5
+// Constraint to client1 frequency
+15
+// Trajectory to client1 frequency
+10

@@ -1,0 +1,20 @@
+////////////////////////////////
+// percentExploredThreshold: Percentage of explored voxels to total voxels within a bin
+// If the percentage of explored voxels to total voxels in a bin is greater than
+// this parameter, the bin ceases to divide.
+0.975
+////////////////////////////////
+// binExploredCapacity: Maximum number of explored voxels within a bin
+100
+////////////////////////////////
+// binOccupiedCapacity: Maximum number of occupied voxels within a bin
+150
+////////////////////////////////
+// minEdgeSize: Minimum size of any edge of any bin (meters)
+0.6
+////////////////////////////////
+// maxEdgeSize: Maximum size of any edge of any bin (meters)
+20.0
+////////////////////////////////
+// mu_prox: 
+0.2
