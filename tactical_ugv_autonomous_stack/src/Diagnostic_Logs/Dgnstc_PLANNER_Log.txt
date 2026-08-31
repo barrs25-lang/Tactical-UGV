@@ -1,0 +1,7 @@
+TIME: 0.0001676 - SYSTEM: <PLANNER-SETUP> Setup pthread mutex.
+TIME: 0.0002171 - SYSTEM: <PLANNER-SETUP> Setup quit handler.
+TIME: 0.0002379 - SYSTEM: <PLANNER-SETUP> Opened file: Parameter_Files/Heuristic_params.txt.
+TIME: 0.0002676 - SYSTEM: <PLANNER-SETUP> Read file: Parameter_Files/Heuristic_params.txt.
+TIME: 0.0002808 - SYSTEM: <PLANNER-SETUP> Closed file: Parameter_Files/Heuristic_params.txt.
+TIME: 0.0002859 - SYSTEM: <PLANNER-SETUP> Opening file: Parameter_Files/Safety_params.txt.
+TIME: 0.005811 - SYSTEM: <PLANNER-SETUP> Threads started successfully.

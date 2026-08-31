@@ -1,0 +1,4 @@
+TIME: 0.04782 - SYSTEM: <TRAJ-PLANNER-FMPC> Starting trajectory planner thread.
+TIME: 0.04817 - SYSTEM: <TRAJ-PLANNER-FMPC> Starting communication thread.
+TIME: 2.788 - SYSTEM: <QUIT HANDLER> TERMINATING AT USER REQUEST
+

@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>tactical_ugv_autonomous_stack</name>
+  <version>0.0.1</version>
+  <description>
+    ROS2 replacement for comm_server. Provides one bridge node per legacy planner binary
+    (goal_generation, path_planner, trajectory_planner) that exposes the map/pose/goal/path/
+    constraints/trajectory data those binaries already produce and consume as ROS2 topics,
+    without modifying any of the legacy planner source code. Each node's source lives under
+    src/&lt;package&gt;/src/ alongside that package's own (untouched) legacy sources.
+  </description>
+  <maintainer email="barrs25@vt.edu">bshla</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>ament_index_cpp</depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

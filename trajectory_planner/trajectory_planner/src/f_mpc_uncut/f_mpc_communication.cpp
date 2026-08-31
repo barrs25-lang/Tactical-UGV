@@ -53,7 +53,7 @@ void F_MPC_UNCUT::communication_thread()
 	cout << message << endl;
 	log_f_mpc.writeToLog(message);
 
-	CLIENT client("/home/julius/git/darpa_mapping_sim_server_testing/comm_server/build/socket_parameters3.txt", &time_to_exit);
+	CLIENT client("../../comm_server/build/socket_parameters3.txt", &time_to_exit);
 
 	bool constraintPass = false, posePass = false, mapPass = false, pathPass = false;
 

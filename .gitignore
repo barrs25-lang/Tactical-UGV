@@ -1,0 +1,3 @@
+# VSCode C/C++ extension IntelliSense browsing database -- a local cache regenerated
+# automatically, not source. It has previously grown past 1GB and blocked pushes.
+.vscode/browse.vc.db*
