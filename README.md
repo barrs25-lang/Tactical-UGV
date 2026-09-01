@@ -60,13 +60,30 @@ Notes on reading these numbers:
 ## Questions (Temp, will remove once resolved)
 ### Negative Pose?
 
-[Neg pose](trajectory_planner/trajectory_planner/src/f_mpc_uncut/f_mpc_trajectory.cpp#246-251)
+[Neg pose](tactical_ugv_autonomous_stack/src/trajectory_planner/src/f_mpc_uncut/f_mpc_trajectory.cpp#246-251)
   <figure><img src='Images/NegativePose.png' alt='Alt text'><figcaption>The initial conditions (Reinitilized per loop from current pose in previous loop) are negative for the y-pos and y-vel pose data. May be an artifact due to code refactor and held true only for UAV pose, will investigate during testing. </figcaption></figure>.
 
-[Parameter Line](trajectory_planner/trajectory_planner/build/Parameter_Files/MPC_params.txt#60)
+---
+
+### Line Search?
+
+[Parameter Line](tactical_ugv_autonomous_stack/src/trajectory_planner/build/Parameter_Files/MPC_params.txt#60)
   <figure><img src='Images/LineSearchAvailabiliy.png' alt='Alt text'><figcaption>Which of these options is the most reasonable? </figcaption></figure>.
 
-[$g_{barrier}$](trajectory_planner/trajectory_planner/src/f_mpc_uncut/f_mpc_feedback_linearization.cpp#125-132)
+---
+
+<!-- ### $g_{barrier}$ form?
+
+[$g_{barrier}$](tactical_ugv_autonomous_stack/src/trajectory_planner/src/f_mpc_uncut/f_mpc_feedback_linearization.cpp#125-132)
   <figure><img src='Images/G_barrier_construction.png' alt='Alt text'><figcaption>Is g_barrier constructed correctly? </figcaption></figure>.
 
+--- -->
+
+### Camera integration?
+
   <figure><img src='Images/ROS_Comms.png' alt='Alt text'><figcaption>This architecture is configured for simulation. Is this just a static map dimension input? If so, does removing affect the rest of the code architecture? </figcaption></figure>.
+
+
+  There is currently no configuration for a camera input. I originally thought that goal generation code was meant to voxelize the camera input but it seems to voxelize the entire hardcoded map? I may need to dig into this some more but my main question is whether I should:
+  1. Voxelize continuous stream of point cloud data from camera (Octree algo?) with no hard boundary so the UGV can explore freely?
+  2. Keep the map structure so the exporation area is bounded as the UAV sim was with the walled in space?

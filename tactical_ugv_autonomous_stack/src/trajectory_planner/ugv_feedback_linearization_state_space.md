@@ -58,13 +58,13 @@ The second-order output dynamics are written in control-affine form:
 
 $$\begin{bmatrix} \ddot{x}(t) \\ \ddot{y}(t) \end{bmatrix} = f_{pos}(\chi, \psi, \dot{\psi}) + G_{pos}(\psi) \begin{bmatrix} F_x(t) \\ \delta_f(t) \end{bmatrix}$$
 
-### Exact Non-Linear Drift Vector $f_{pos}(\cdot)$
+### Exact Non-Linear Drift Vector $f_{pos}(\cdot)$ [Code](src/f_mpc_uncut/f_mpc_feedback_linearization.cpp#52-79)
 $$f_{pos}(\cdot) = R(\psi) \begin{bmatrix} v_y \dot{\psi} \\ -\frac{2 P_{C_f} \arctan\left(\frac{v_y + a\dot{\psi}}{\max(v_x, \varepsilon)}\right) + 2 P_{C_r} \arctan\left(\frac{v_y - b\dot{\psi}}{\max(v_x, \varepsilon)}\right)}{m} - v_x \dot{\psi} \end{bmatrix}$$
 
-### Decoupling Control Matrix $G_{pos}(\psi)$
+### Decoupling Control Matrix $G_{pos}(\psi)$ 
 $$G_{pos}(\psi) = R(\psi) \begin{bmatrix} \frac{1}{m} & 0 \\ 0 & \frac{2 P_{C_f}}{m} \end{bmatrix} = \begin{bmatrix} \frac{\cos\psi}{m} & -\frac{2 P_{C_f} \sin\psi}{m} \\[6pt] \frac{\sin\psi}{m} & \frac{2 P_{C_f} \cos\psi}{m} \end{bmatrix}$$
 
-### Inverse Decoupling Matrix $G_{pos}^{-1}(\psi)$
+### Inverse Decoupling Matrix $G_{pos}^{-1}(\psi)$ [Code](src/f_mpc_uncut/f_mpc_feedback_linearization.cpp#25-43)
 $$G_{pos}^{-1}(\psi) = \begin{bmatrix} m \cos\psi & m \sin\psi \\[6pt] -\frac{m \sin\psi}{2 P_{C_f}} & \frac{m \cos\psi}{2 P_{C_f}} \end{bmatrix}$$
 
 ---
@@ -93,7 +93,7 @@ $$\begin{bmatrix} \ddot{x}_{lin} \\ \ddot{y}_{lin} \end{bmatrix} = \begin{bmatri
 
 ## 5. Feedback Linearized Control Law
 
-Equating the physical system accelerations to the linear state-space target accelerations:
+Equating the physical system accelerations to the linear state-space target accelerations Computed by MPC:
 
 $$f_{pos}(\cdot) + G_{pos}(\psi) \begin{bmatrix} F_x(t) \\ \delta_f(t) \end{bmatrix} = \begin{bmatrix} \tilde{A}_{x,0} x(t) + \tilde{A}_{x,1} \dot{x}(t) + \tilde{B}_{x,1} \lambda_x(t) \\ \tilde{A}_{y,0} y(t) + \tilde{A}_{y,1} \dot{y}(t) + \tilde{B}_{y,1} \lambda_y(t) \end{bmatrix}$$
 
@@ -103,7 +103,7 @@ $$\begin{bmatrix} F_x(t) \\ \delta_f(t) \end{bmatrix} = G_{pos}^{-1}(\psi) \left
 
 ### Explicit Scalar Control Solutions
 
-Expanding the matrix inversion yields:
+Expanding the matrix inversion yields ([Code](src/f_mpc_uncut/f_mpc_feedback_linearization.cpp#89-142)):
 
 $$\begin{aligned}
 F_x(t) &= m \cos\psi \left( \tilde{A}_{x,0} x(t) + \tilde{A}_{x,1} \dot{x}(t) + \tilde{B}_{x,1} \lambda_x(t) \right) \\
@@ -124,4 +124,4 @@ where:
 
 $$A_{discrete} = e^{\tilde{A} \Delta T}, \quad B_{discrete} = \int_{0}^{\Delta T} e^{\tilde{A}\tau} d\tau \tilde{B}$$
 
-This discrete linear dynamic system can be directly plugged into downstream LTI linear MPC controllers (such as `acados` or `ACADO`).
+This discrete linear dynamic system can be directly plugged into downstream LTI linear MPC controllers such as the one used in this codebase(or `acados` or `ACADO`).
