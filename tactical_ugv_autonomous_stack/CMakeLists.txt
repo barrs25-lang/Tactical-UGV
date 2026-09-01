@@ -48,14 +48,15 @@ ament_target_dependencies(legacy_bridge_core
 )
 
 # One node executable per legacy package, built from that package's own src/ directory
-# (the legacy binaries themselves -- goal_generation, path_planner, fmpc_uncut -- are built
-# separately by each package's own existing, untouched CMakeLists.txt/build process and are
-# not part of this ament_cmake build).
+# (the legacy binaries themselves -- goal_generation, path_planner, fmpc_uncut,
+# constraint_generation -- are built separately by each package's own existing, untouched
+# CMakeLists.txt/build process and are not part of this ament_cmake build).
 add_executable(goal_generation_bridge src/goal_generation/src/goal_generation_bridge_node.cpp)
 add_executable(path_planner_bridge src/path_planner/src/path_planner_bridge_node.cpp)
 add_executable(trajectory_planner_bridge src/trajectory_planner/src/trajectory_planner_bridge_node.cpp)
+add_executable(constraint_generation_bridge src/constraint_generation/src/constraint_generation_bridge_node.cpp)
 
-foreach(bridge_target goal_generation_bridge path_planner_bridge trajectory_planner_bridge)
+foreach(bridge_target goal_generation_bridge path_planner_bridge trajectory_planner_bridge constraint_generation_bridge)
   target_link_libraries(${bridge_target} legacy_bridge_core "${cpp_typesupport_target}")
   ament_target_dependencies(${bridge_target}
     rclcpp
@@ -70,6 +71,7 @@ install(TARGETS
   goal_generation_bridge
   path_planner_bridge
   trajectory_planner_bridge
+  constraint_generation_bridge
   DESTINATION lib/${PROJECT_NAME}
 )
 

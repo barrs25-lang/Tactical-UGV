@@ -1,0 +1,72 @@
+//Parameter File for Constraint Generation
+//////////////////////////////////////////////
+//Soft offset scale (soft constraints will be this much closer to the center than hard constraints)
+0.8
+//////////////////////////////////////////////
+//Switch for logging of constraints: (0) for no logging, (1) for logging
+1
+//////////////////////////////////////////////
+// maxIter: Maximum number of iterations
+100
+//////////////////////////////////////////////
+// epsilonStar: Accuracy of an approximate optimal solution of the SDP
+1*10^(-4)
+//////////////////////////////////////////////
+// epsilonDash: "" 
+1*10^(-4)
+//////////////////////////////////////////////
+// lambdaStar: Determines an initial point (x0,X0,Y0). lambdaStar: (X* <= lambdaStar*Identity) 
+// 10 works for MIN_DIST_CNTR
+// 100 works for MIN_DIST
+100
+//////////////////////////////////////////////
+// omegaStar: Determines the region in which SDPA searches an optimal solution. (omegaStar > 1)
+// 50 works for MIN_DIST_CNTR
+// 20 works for MIN_DIST
+100
+//////////////////////////////////////////////
+// betaStar: Controls search direction when (xk,Xk,Yk) is feasible. (0 <= betaStar <= betaBar)
+0.05
+//////////////////////////////////////////////
+// betaBar: Controls search direction when (xk,Xk,Yk) is infeasible. (0 <= betaStar <= betaBar)
+// 0.95 works for MIN_DIST_CNTR
+// 0.2 works for MIN_DIST
+0.1
+//////////////////////////////////////////////
+// gammaStar: Reduction factor for the step length. (0 < gammaStar < 1)
+0.91
+//////////////////////////////////////////////
+// parameterType: (0) DEFAULT (1) UNSTABLE_BUT_FAST (2) STABLE_BUT_SLOW
+2
+//////////////////////////////////////////////
+// map_filename: name of the map text file
+//Parameter_Files/map_L_hallway.txt
+Parameter_Files/9_28_2020_test.txt
+//////////////////////////////////////////////
+// bound_filename: name of the bounding map text file
+Parameter_Files/sphereCloud_R10.txt
+//////////////////////////////////////////////
+// initial_center_filename: name of the bounding map text file
+Parameter_Files/init_bC.txt
+//////////////////////////////////////////////
+// epsilon: small offset for detecting if a point is close to an ellipsoid
+0.75
+//////////////////////////////////////////////
+// num_xy_sectors: how many angles to sample the azimuth (EVEN NUMBER)
+8
+//////////////////////////////////////////////
+// num_z_sectors: how many angles to sample the inclination (EVEN NUMBER)
+8
+//////////////////////////////////////////////
+// bCenters Source: where the algorithm determines the centers of the ellipsoids from
+// 0 for min_dist_cntr
+// 1 for text file 
+0
+//////////////////////////////////////////////
+// bCenters Samples: Number of centers to pull from min_dist_cntr
+1
+//////////////////////////////////////////////
+// \bar{v}: Minimum for \overline{B}
+// Ensures that the ball which detects alarming points
+// is not too small.
+2.0

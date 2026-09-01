@@ -1,0 +1,102 @@
+SDPA start at [Mon May  6 20:12:43 2019]
+set   is DEFAULT
+data   is example1.dat-s  : sparse
+"Example 1: mDim = 3, nBLOCK = 1, {2}"
+out    is exmaple1.out
+NumThreads  is set as 1
+Schur computation : DENSE 
+   mu      thetaP  thetaD  objP      objD      alphaP  alphaD  beta 
+ 0 1.0e+04 1.0e+00 1.0e+00 -0.00e+00 +1.20e+03 1.0e+00 9.1e-01 2.00e-01
+ 1 1.6e+03 0.0e+00 9.4e-02 +8.39e+02 +7.51e+01 2.3e+00 9.6e-01 2.00e-01
+ 2 1.7e+02 2.3e-16 3.6e-03 +1.96e+02 -3.74e+01 1.3e+00 1.0e+00 2.00e-01
+ 3 1.8e+01 2.9e-16 1.5e-17 -6.84e+00 -4.19e+01 9.9e-01 9.0e+01 1.00e-01
+ 4 1.9e+00 2.6e-16 5.7e-16 -3.81e+01 -4.19e+01 1.0e+00 1.0e+00 1.00e-01
+ 5 1.9e-01 2.5e-16 1.9e-18 -4.15e+01 -4.19e+01 1.0e+00 1.0e+00 1.00e-01
+ 6 1.9e-02 2.5e-16 1.5e-17 -4.19e+01 -4.19e+01 1.0e+00 9.0e+01 1.00e-01
+ 7 1.9e-03 2.6e-16 1.7e-15 -4.19e+01 -4.19e+01 1.0e+00 1.0e+00 1.00e-01
+ 8 1.9e-04 2.8e-16 1.5e-17 -4.19e+01 -4.19e+01 1.0e+00 1.0e+00 1.00e-01
+ 9 1.9e-05 2.7e-16 7.5e-18 -4.19e+01 -4.19e+01 1.0e+00 1.0e+00 1.00e-01
+10 1.9e-06 2.6e-16 3.0e-17 -4.19e+01 -4.19e+01 1.0e+00 1.0e+00 1.00e-01
+
+phase.value  = pdOPT     
+   Iteration = 10
+          mu = +1.9180668442024251e-06
+relative gap = +9.1554508291130482e-08
+        gap  = +3.8361337217907021e-06
+     digits  = +7.0383202654774752e+00
+objValPrimal = -4.1899996163866312e+01
+objValDual   = -4.1900000000000034e+01
+p.feas.error = +3.2137707344512614e-14
+d.feas.error = +2.8421709430404007e-14
+total time   = 0.171044
+** Parameters **
+maxIteration = 100
+epsilonStar  = +9.9999999999999995e-08
+lambdaStar   = +1.0000000000000000e+02
+omegaStar    = +2.0000000000000000e+00
+lowerBound   = -1.0000000000000000e+05
+upperBound   = +1.0000000000000000e+05
+betaStar     = +1.0000000000000001e-01
+betaBar      = +2.0000000000000001e-01
+gammaStar    = +9.0000000000000002e-01
+epsilonDash  = +9.9999999999999995e-08
+xPrint       = %+8.3e 
+XPrint       = %+8.3e 
+YPrint       = %+8.3e 
+infPrint     = %+10.16e 
+
+                         Time(sec)  Ratio(% : MainLoop) 
+ Predictor time  =       0.165187,  97.282702
+ Corrector time  =       0.000676,  0.398113
+ Make bMat time  =       0.153830,  90.594284
+ Make bDia time  =       0.000025,  0.014723
+ Make bF1  time  =       0.000000,  0.000000
+ Make bF2  time  =       0.000000,  0.000000
+ Make bF3  time  =       0.000000,  0.000000
+ Make bPRE time  =       0.000339,  0.199645
+ Make rMat time  =       0.000119,  0.070082
+ Make gVec Mul   =       0.010549,  6.212566
+ Make gVec time  =       0.010701,  6.302083
+ Cholesky bMat   =       0.000084,  0.049470
+ Ste Pre time    =       0.000046,  0.027091
+ Ste Cor time    =       0.000513,  0.302118
+ solve           =       0.000193,  0.113662
+ sumDz           =       0.000119,  0.070082
+ makedX          =       0.000195,  0.114840
+ symmetriseDx    =       0.000058,  0.034158
+ makedXdZ        =       0.000579,  0.340987
+ xMatTime        =       0.001064,  0.626616
+ zMatTime        =       0.000185,  0.108951
+ invzMatTime     =       0.000000,  0.000000
+ xMatzMatTime    =       0.000000,  0.000000
+ EigxMatTime     =       0.000329,  0.193756
+ EigzMatTime     =       0.000090,  0.053003
+ EigxMatzMatTime =       0.000000,  0.000000
+ updateRes       =       0.000088,  0.051825
+ EigTime         =       0.000419,  0.246759
+ sub_total_bMat  =       0.015971,  9.405716
+ Main Loop       =       0.169801,  100.000000
+ File Check      =       0.000000,  0.000000
+ File Change     =       0.000010,  0.005889
+ File Read       =       0.001233,  0.726144
+ Total           =       0.171044,  100.732033
+
+xVec = 
+{-1.100e+00,-2.738e+00,-5.500e-01}
+xMat = 
+{
+{ {+4.784e-07,+6.578e-07 },
+  {+6.578e-07,+2.823e-06 }   }
+}
+yMat = 
+{
+{ {+5.900e+00,-1.375e+00 },
+  {-1.375e+00,+1.000e+00 }   }
+}
+    main loop time = 0.169801
+        total time = 0.171044
+  file  check time = 0.000000
+  file change time = 0.000010
+  file   read time = 0.001233
+SDPA end at [Mon May  6 20:12:43 2019]
+ALL TIME = 0.186141

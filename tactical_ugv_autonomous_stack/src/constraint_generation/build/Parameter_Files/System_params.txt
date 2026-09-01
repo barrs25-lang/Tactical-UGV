@@ -1,0 +1,10 @@
+///////////////////////////////////////////////
+//Platform Dimensions (width x length x height in meters)
+0.3 0.3 0.3
+//////////////////////////////////////////////
+//Hard altitude ceiling for trajectory planner (meters)
+6.0
+//////////////////////////////////////////////
+//Soft altitude ceiling for trajectory planner (meters)
+5.0
+
