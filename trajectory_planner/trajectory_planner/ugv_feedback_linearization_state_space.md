@@ -2,7 +2,7 @@
 
 ## 1. System Dynamics & State Representation
 
-We consider a planar dynamic bicycle model for an Unmanned Ground Vehicle (UGV). The state vector $\chi(t)$ in global inertial coordinates is given by:
+We consider a planar dynamic bicycle model for an Unmanned Ground Vehicle (UGV). The state vector $\chi(t)$ in global **inertial**? (Tactical Coverage 3.4.2 #69) coordinates is given by:
 
 $$\chi(t) = \begin{bmatrix} x(t) \\ \dot{x}(t) \\ y(t) \\ \dot{y}(t) \end{bmatrix}$$
 

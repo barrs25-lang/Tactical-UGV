@@ -13,22 +13,39 @@ exactly as they already block waiting for a TCP connection.
 The legacy binaries (goal_generation, path_planner, fmpc_uncut, constraint_generation) are built
 by each package's own plain CMakeLists.txt under
 tactical_ugv_autonomous_stack/src/<package>/build/, not by this ament_cmake package's colcon
-build -- there is no ROS-standard way to locate them from an installed package, so their
-absolute paths in this checkout are hardcoded below. Each one busy-loops connect() until its
-bridge node is listening, so start order between a bridge and its binary doesn't matter -- but
-you do need to have actually built all four first (cmake .. && make in each package's own
-build/ directory) or the corresponding ExecuteProcess will just fail to find its executable.
-constraint_generation additionally needs libsdpa-dev, libmumps-seq-dev, and liblapack-dev
-installed (sudo apt-get install libsdpa-dev libmumps-seq-dev liblapack-dev) before it will build.
+build -- there is no ROS-standard way to locate them from an installed package's own metadata,
+so their location is derived below from this launch file's own installed path instead of being
+hardcoded to one developer's machine (a previous version hardcoded it, which silently broke
+every ExecuteProcess below on any other machine/checkout path). Each binary busy-loops
+connect() until its bridge node is listening, so start order between a bridge and its binary
+doesn't matter -- but you do need to have actually built all four first (cmake .. && make in
+each package's own build/ directory) or the corresponding ExecuteProcess will fail to find its
+executable. constraint_generation additionally needs libatlas-base-dev, libsdpa-dev,
+libmumps-seq-dev, and liblapack-dev installed before it will build and link.
 """
+
+import os
 
 from launch import LaunchDescription
 from launch.actions import ExecuteProcess
 from launch_ros.actions import Node
 
-# Absolute path to this checkout's tactical_ugv_autonomous_stack/src -- see module docstring
-# for why this can't be resolved from the installed package instead.
-_STACK_SRC = '/home/bshla/UGV_Thesis/Tactical-UGV/tactical_ugv_autonomous_stack/src'
+# This file installs to <workspace>/install/tactical_ugv_autonomous_stack/share/
+# tactical_ugv_autonomous_stack/launch/bridge_nodes.launch.py -- six directories up from here is
+# <workspace>, and the legacy binaries always live under
+# <workspace>/tactical_ugv_autonomous_stack/src/<package>/build/, regardless of which machine or
+# path the workspace was cloned to.
+_THIS_FILE = os.path.abspath(__file__)
+_WORKSPACE_ROOT = os.path.abspath(os.path.join(_THIS_FILE, *([os.pardir] * 6)))
+_STACK_SRC = os.path.join(_WORKSPACE_ROOT, 'tactical_ugv_autonomous_stack', 'src')
+
+if not os.path.isdir(os.path.join(_STACK_SRC, 'trajectory_planner')):
+    raise RuntimeError(
+        "bridge_nodes.launch.py could not find the legacy binaries' source tree at "
+        f"'{_STACK_SRC}' (derived from this launch file's own path, "
+        f"'{_THIS_FILE}'). If the install layout ever changes, adjust the "
+        "os.pardir count above to match."
+    )
 
 
 def generate_launch_description():
