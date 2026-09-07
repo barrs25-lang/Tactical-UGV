@@ -16,6 +16,8 @@ find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(octomap_msgs REQUIRED)
+find_package(octomap REQUIRED)
 
 # Custom messages mirroring the legacy comm_server wire formats (pose, voxel map, collision
 # constraints, planned trajectory). Goal and path reuse standard geometry_msgs/nav_msgs types.
@@ -67,11 +69,27 @@ foreach(bridge_target goal_generation_bridge path_planner_bridge trajectory_plan
   )
 endforeach()
 
+# Translator node: deserializes octomap_server's octomap_binary output and republishes it as a
+# VoxelMap on /ugv/map in the fixed 100x30x100 @ 0.2m dense layout the legacy binaries expect
+# (see include/tactical_ugv_autonomous_stack/octomap_to_voxelmap.md-equivalent notes in the
+# source file itself for the exact index/byte-order contract). octomap is a plain CMake-exported
+# package (not ament), hence the extra include/link variables below instead of
+# ament_target_dependencies alone.
+add_executable(octomap_to_voxelmap src/perception/octomap_to_voxelmap_node.cpp)
+target_include_directories(octomap_to_voxelmap PRIVATE ${OCTOMAP_INCLUDE_DIRS})
+target_link_libraries(octomap_to_voxelmap "${cpp_typesupport_target}" ${OCTOMAP_LIBRARIES})
+ament_target_dependencies(octomap_to_voxelmap
+  rclcpp
+  std_msgs
+  octomap_msgs
+)
+
 install(TARGETS
   goal_generation_bridge
   path_planner_bridge
   trajectory_planner_bridge
   constraint_generation_bridge
+  octomap_to_voxelmap
   DESTINATION lib/${PROJECT_NAME}
 )
 
