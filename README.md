@@ -27,6 +27,12 @@ To Compile all of the binaries and build the ros2 package with all of the depend
 ```
 from the top level of the directory. 
 
+To run the full stack:
+```
+  source install/setup.bash &&
+  ros2 launch tactical_ugv_autonomous_stack bridge_nodes.launch.py
+```
+
 ## Refactor from the original UAV codebase
 
 `trajectory_planner/` originated as a quadrotor (UAV) feedback-linearized MPC controller. It has
