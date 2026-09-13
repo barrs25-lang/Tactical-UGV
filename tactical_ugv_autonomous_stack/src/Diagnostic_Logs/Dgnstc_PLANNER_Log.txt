@@ -411,3 +411,38 @@ TIME: 3252 - SYSTEM: <LPA* THREAD> Updating map.
 TIME: 3254 - SYSTEM: <LPA* THREAD> Updating map.
 TIME: 3254 - SYSTEM: <LPA* THREAD> Running LPA*
 TIME: 3254 - SYSTEM: <LPA* THREAD> Computing 'shortest' path.
+TIME: 3326 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3327 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3329 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3331 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3333 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3334 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3336 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3336 - SYSTEM: <LPA* THREAD> Running LPA*
+TIME: 3337 - SYSTEM: <LPA* THREAD> Computing 'shortest' path.
+TIME: 3383 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3385 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3386 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3388 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3390 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3392 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3393 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3394 - SYSTEM: <LPA* THREAD> Running LPA*
+TIME: 3394 - SYSTEM: <LPA* THREAD> Computing 'shortest' path.
+TIME: 3443 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3445 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3447 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3448 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3450 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3452 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3454 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3454 - SYSTEM: <LPA* THREAD> Running LPA*
+TIME: 3455 - SYSTEM: <LPA* THREAD> Computing 'shortest' path.
+TIME: 3525 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3527 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3530 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3532 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3533 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3535 - SYSTEM: <LPA* THREAD> Updating map.
+TIME: 3536 - SYSTEM: <LPA* THREAD> Running LPA*
+TIME: 3536 - SYSTEM: <LPA* THREAD> Computing 'shortest' path.
