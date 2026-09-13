@@ -18,6 +18,7 @@ find_package(nav_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(octomap_msgs REQUIRED)
 find_package(octomap REQUIRED)
+find_package(ackermann_msgs REQUIRED)
 
 # Custom messages mirroring the legacy comm_server wire formats (pose, voxel map, collision
 # constraints, planned trajectory). Goal and path reuse standard geometry_msgs/nav_msgs types.
@@ -84,12 +85,39 @@ ament_target_dependencies(octomap_to_voxelmap
   octomap_msgs
 )
 
+# Translator node: republishes the ZED wrapper's odometry as LegacyPose on /ugv/pose, which all
+# four legacy-bridge nodes subscribe to (see src/perception/zed_odom_to_legacy_pose_node.cpp for
+# the field-usage audit and frame-rotation contract).
+add_executable(zed_odom_to_legacy_pose src/perception/zed_odom_to_legacy_pose_node.cpp)
+target_link_libraries(zed_odom_to_legacy_pose "${cpp_typesupport_target}")
+ament_target_dependencies(zed_odom_to_legacy_pose
+  rclcpp
+  std_msgs
+  geometry_msgs
+  nav_msgs
+)
+
+# Translator node: converts fmpc_uncut's planned control sequence on /ugv/control_sequence
+# ([vx, delta_f]) into the f1tenth stack's AckermannDriveStamped actuation command on /drive
+# (see src/perception/control_sequence_to_ackermann_node.cpp for the full data-flow/safety
+# contract). ackermann_msgs is installed system-wide (ros-humble-ackermann-msgs), independent of
+# the separate f1tenth_ws workspace that actually consumes /drive.
+add_executable(control_sequence_to_ackermann src/perception/control_sequence_to_ackermann_node.cpp)
+target_link_libraries(control_sequence_to_ackermann "${cpp_typesupport_target}")
+ament_target_dependencies(control_sequence_to_ackermann
+  rclcpp
+  std_msgs
+  ackermann_msgs
+)
+
 install(TARGETS
   goal_generation_bridge
   path_planner_bridge
   trajectory_planner_bridge
   constraint_generation_bridge
   octomap_to_voxelmap
+  zed_odom_to_legacy_pose
+  control_sequence_to_ackermann
   DESTINATION lib/${PROJECT_NAME}
 )
 

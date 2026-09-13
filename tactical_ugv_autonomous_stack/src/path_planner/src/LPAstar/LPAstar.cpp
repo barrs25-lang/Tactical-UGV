@@ -1754,7 +1754,7 @@ bool Planner::updatemap()
 		} // for (z = 0; z < MAZEHEIGHT; ++z)
 
 		// cout << "obs: " << obs << endl;
-		// cout << "changes: " << changes << endl;	
+		// cout << "changes: " << changes << endl;
 
 	// Relinquish possession of the map_lock
 	pthread_mutex_unlock(&map_lock);
@@ -1854,13 +1854,24 @@ bool Planner::updatemap()
       		if ( (x > 0 && y > 0 && z > 0) && (x < MAZEDEPTH-1 && y < MAZEWIDTH-1 && z < MAZEHEIGHT-1) )
       		{
 
-      			// If adjacent voxels are not occupied
-      			if ( (( ( (!maze[z][y][x-1].obstacle || !maze[z][y-1][x].obstacle) && !maze[z][y-1][x-1].obstacle) || ( (!maze[z][y][x-1].obstacle || !maze[z][y+1][x].obstacle) && !maze[z][y+1][x-1].obstacle) || ( (!maze[z][y][x+1].obstacle || !maze[z][y-1][x].obstacle) && !maze[z][y-1][x+1].obstacle) || ( (!maze[z][y][x+1].obstacle || !maze[z][y+1][x].obstacle) && !maze[z][y+1][x+1].obstacle) || !maze[z][y][x+1].obstacle || !maze[z][y][x-1].obstacle || !maze[z][y+1][x].obstacle || !maze[z][y-1][x].obstacle )) && !maze[z][y+1][x+1].obstacle && !maze[z][y-1][x+1].obstacle && !maze[z][y+1][x-1].obstacle && !maze[z][y-1][x-1].obstacle && !maze[z+1][y+1][x+1].obstacle && !maze[z-1][y+1][x+1].obstacle && !maze[z+1][y-1][x+1].obstacle && !maze[z-1][y-1][x+1].obstacle && !maze[z+1][y+1][x-1].obstacle && !maze[z-1][y+1][x-1].obstacle && !maze[z-1][y+1][x].obstacle && !maze[z+1][y+1][x].obstacle && !maze[z-1][y][x-1].obstacle && !maze[z+1][y][x-1].obstacle && !maze[z-1][y][x+1].obstacle && !maze[z+1][y][x+1].obstacle && !maze[z+1][y+1][x+1].obstacle && !maze[z+1][y-1][x+1].obstacle && !maze[z+1][y+1][x-1].obstacle && !maze[z+1][y-1][x-1].obstacle && !maze[z-1][y+1][x+1].obstacle && !maze[z-1][y-1][x+1].obstacle && !maze[z-1][y+1][x-1].obstacle && !maze[z-1][y-1][x-1].obstacle)
-      			{
-
-      				// Iterate over the number of directions
+      			// Always link the 6 axis-aligned directions if the target voxel itself is free.
+      			// These moves can never "cut a corner" through a diagonal gap between two occupied
+      			// cells, so they do not need the corner-safety check below -- gating them on it
+      			// too (as this block used to) meant any free cell with even one occupied corner
+      			// neighbor (e.g. anything next to the map's forced-occupied boundary ring, which
+      			// includes the vehicle's own start voxel under the legacy 0-20m/start-at-corner
+      			// convention) got ZERO outgoing edges, including perfectly safe straight-line
+      			// ones, stranding it in the search graph.
 							for (d = 0; d < DIRECTIONS; ++d)
 						  {
+
+						  	// Only handle axis-aligned directions here (exactly one of dx/dy/dz
+						  	// nonzero); diagonal directions are linked separately below, behind
+						  	// the corner check.
+						  	if (abs(dx[d]) + abs(dy[d]) + abs(dz[d]) != 1)
+						  	{
+						  		continue;
+						  	}
 
 						  	// Compute temporary cell position
 						    newz = z + dz[d];
@@ -1878,7 +1889,37 @@ bool Planner::updatemap()
 
 		      		} // for (d = 0; d < DIRECTIONS; ++d)
 
-    				} // if ( (( ( (!maze[z][y][x-1].obstacle || !maze[z][y-1][x].obstacle) && !maze[z][y-1][x-1].obstacle) || ( (!maze[z][y][x-1].obstacle || !maze[z][y+1][x].obstacle) && !maze[z][y+1][x-1].obstacle) || ( (!maze[z][y][x+1].obstacle || !maze[z][y-1][x].obstacle) && !maze[z][y-1][x+1].obstacle) || ( (!maze[z][y][x+1].obstacle || !maze[z][y+1][x].obstacle) && !maze[z][y+1][x+1].obstacle) || !maze[z][y][x+1].obstacle || !maze[z][y][x-1].obstacle || !maze[z][y+1][x].obstacle || !maze[z][y-1][x].obstacle )) && !maze[z][y+1][x+1].obstacle && !maze[z][y-1][x+1].obstacle && !maze[z][y+1][x-1].obstacle && !maze[z][y-1][x-1].obstacle && !maze[z+1][y+1][x+1].obstacle && !maze[z-1][y+1][x+1].obstacle && !maze[z+1][y-1][x+1].obstacle && !maze[z-1][y-1][x+1].obstacle && !maze[z+1][y+1][x-1].obstacle && !maze[z-1][y+1][x-1].obstacle && !maze[z-1][y+1][x].obstacle && !maze[z+1][y+1][x].obstacle && !maze[z-1][y][x-1].obstacle && !maze[z+1][y][x-1].obstacle && !maze[z-1][y][x+1].obstacle && !maze[z+1][y][x+1].obstacle && !maze[z+1][y+1][x+1].obstacle && !maze[z+1][y-1][x+1].obstacle && !maze[z+1][y+1][x-1].obstacle && !maze[z+1][y-1][x-1].obstacle && !maze[z-1][y+1][x+1].obstacle && !maze[z-1][y-1][x+1].obstacle && !maze[z-1][y+1][x-1].obstacle && !maze[z-1][y-1][x-1].obstacle)
+      			// If adjacent voxels are not occupied (diagonal-move corner-cutting guard)
+      			if ( (( ( (!maze[z][y][x-1].obstacle || !maze[z][y-1][x].obstacle) && !maze[z][y-1][x-1].obstacle) || ( (!maze[z][y][x-1].obstacle || !maze[z][y+1][x].obstacle) && !maze[z][y+1][x-1].obstacle) || ( (!maze[z][y][x+1].obstacle || !maze[z][y-1][x].obstacle) && !maze[z][y-1][x+1].obstacle) || ( (!maze[z][y][x+1].obstacle || !maze[z][y+1][x].obstacle) && !maze[z][y+1][x+1].obstacle) || !maze[z][y][x+1].obstacle || !maze[z][y][x-1].obstacle || !maze[z][y+1][x].obstacle || !maze[z][y-1][x].obstacle )) && !maze[z][y+1][x+1].obstacle && !maze[z][y-1][x+1].obstacle && !maze[z][y+1][x-1].obstacle && !maze[z][y-1][x-1].obstacle && !maze[z+1][y+1][x+1].obstacle && !maze[z-1][y+1][x+1].obstacle && !maze[z+1][y-1][x+1].obstacle && !maze[z-1][y-1][x+1].obstacle && !maze[z+1][y+1][x-1].obstacle && !maze[z-1][y+1][x-1].obstacle && !maze[z-1][y+1][x].obstacle && !maze[z+1][y+1][x].obstacle && !maze[z-1][y][x-1].obstacle && !maze[z+1][y][x-1].obstacle && !maze[z-1][y][x+1].obstacle && !maze[z+1][y][x+1].obstacle && !maze[z+1][y+1][x+1].obstacle && !maze[z+1][y-1][x+1].obstacle && !maze[z+1][y+1][x-1].obstacle && !maze[z+1][y-1][x-1].obstacle && !maze[z-1][y+1][x+1].obstacle && !maze[z-1][y-1][x+1].obstacle && !maze[z-1][y+1][x-1].obstacle && !maze[z-1][y-1][x-1].obstacle)
+      			{
+
+      				// Iterate over the number of directions, linking only the diagonal ones --
+      				// the axis-aligned directions were already linked unconditionally above.
+							for (d = 0; d < DIRECTIONS; ++d)
+						  {
+
+						  	if (abs(dx[d]) + abs(dy[d]) + abs(dz[d]) == 1)
+						  	{
+						  		continue;
+						  	}
+
+						  	// Compute temporary cell position
+						    newz = z + dz[d];
+						    newy = y + dy[d];
+						    newx = x + dx[d];
+
+						    // If temp cell position is feasible
+						    if (newz >= 0 && newz < MAZEHEIGHT && newy >= 0 && newy < MAZEWIDTH && newx >= 0 && newx < MAZEDEPTH && !maze[newz][newy][newx].obstacle)
+						    {
+
+						    	// Set the edge in the graph
+						      maze[z][y][x].move[d] = &maze[newz][newy][newx];
+
+						  	} // if (newz >= 0 && newz < MAZEHEIGHT && newy >= 0 && newy < MAZEWIDTH && newx >= 0 && newx < MAZEDEPTH && !maze[newz][newy][newx].obstacle)
+
+		      		} // for (d = 0; d < DIRECTIONS; ++d)
+
+    				} // if (diagonal-move corner-cutting guard)
 
       		} // if ( (x > 0 && y > 0 && z > 0) && (x < MAZEDEPTH-1 && y < MAZEWIDTH-1 && z < MAZEHEIGHT-1) )
       		

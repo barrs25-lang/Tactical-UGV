@@ -103,3 +103,9 @@
 //////////////////////////////////////////////
 // goal tolerance
 0.25
+//////////////////////////////////////////////
+// Half of camera horizontal FOV (degrees) -- used by goal_generation to gate whether a goal is
+// within the vehicle's forward field of view. ZED2i wide-FOV mode horizontal FOV is ~110 deg
+// per Stereolabs' datasheet, so half-FOV = 55 -- confirm against the actual camera_info/config
+// in use if the ZED is run in a narrower FOV mode.
+55.0

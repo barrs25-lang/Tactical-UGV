@@ -37,8 +37,8 @@ struct System {
 	Eigen::VectorXf eig_u_soft_bounds;
 	float eig_z_soft_ceiling_bounds;
 
-	Eigen::VectorXf X0;
-	Eigen::VectorXf V0;
+	Eigen::Vector3f X0;
+	Eigen::Vector3f V0;
 
 	Eigen::MatrixXf eig_boundary_conditions;
 

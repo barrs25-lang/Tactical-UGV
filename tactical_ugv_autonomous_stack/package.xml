@@ -26,6 +26,7 @@
   <depend>ament_index_cpp</depend>
   <depend>octomap_msgs</depend>
   <depend>octomap</depend>
+  <depend>ackermann_msgs</depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

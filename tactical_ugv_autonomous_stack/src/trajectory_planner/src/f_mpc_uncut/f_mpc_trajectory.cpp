@@ -1384,9 +1384,13 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 					prev_seg_eig_X[ii] = eig_X;
 					prev_seg_eig_U[ii] = eig_U;
 					full_trajectory[ii] = eig_X;
-					full_policy[ii] = eig_U;
+					// full_policy carries what actually gets published on /ugv/control_sequence.
+					// v_k (populated just above by compute_force_steering_for_lambda_k_and_g_barrier)
+					// holds the real physical [vx; delta_f] for this segment, not the raw virtual
+					// QP control eig_U -- see f_mpc_feedback_linearization.cpp for why.
+					full_policy[ii] = v_k;
 					ii++;
-					numFailures = 0;						
+					numFailures = 0;
 				}
 				else
 				{
@@ -1415,7 +1419,10 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 								prev_seg_eig_X[jj] = eig_X;
 								prev_seg_eig_U[jj] = eig_U;
 								full_trajectory[jj] = eig_X;
-								full_policy[jj] = eig_U;
+								// Explicit safe-stop zero here rather than v_k: compute_force_steering_for_
+								// lambda_k_and_g_barrier (which populates v_k) is NOT called on this give-up
+								// path, so v_k would hold stale data from whatever segment last succeeded.
+								full_policy[jj] = Eigen::MatrixXf::Zero(quadrotor.m, mpc_params.T);
 								segmentGoals(numTrajectoryPlans-1,4*jj) = goal(0,0);
 								segmentGoals(numTrajectoryPlans-1,4*jj+1) = goal(1,0);
 								segmentGoals(numTrajectoryPlans-1,4*jj+2) = goal(2,0);
@@ -1446,7 +1453,10 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 								prev_seg_eig_X[jj] = eig_X;
 								prev_seg_eig_U[jj] = eig_U;
 								full_trajectory[jj] = eig_X;
-								full_policy[jj] = eig_U;
+								// Explicit safe-stop zero here rather than v_k: compute_force_steering_for_
+								// lambda_k_and_g_barrier (which populates v_k) is NOT called on this give-up
+								// path, so v_k would hold stale data from whatever segment last succeeded.
+								full_policy[jj] = Eigen::MatrixXf::Zero(quadrotor.m, mpc_params.T);
 								segmentGoals(numTrajectoryPlans-1,4*jj) = goal(0,0);
 								segmentGoals(numTrajectoryPlans-1,4*jj+1) = goal(1,0);
 								segmentGoals(numTrajectoryPlans-1,4*jj+2) = goal(2,0);

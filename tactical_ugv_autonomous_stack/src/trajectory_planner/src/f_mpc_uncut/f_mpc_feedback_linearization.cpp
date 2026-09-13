@@ -122,6 +122,13 @@ bool F_MPC_UNCUT::compute_force_steering_for_lambda_k_and_g_barrier(Eigen::Matri
 		// Solve the feedback-linearized control law: [F_x; delta_f] = G_pos^{-1}(psi) (accel_target - f_pos)
 		u_k.col(i) = G_inv_k*(accel_target_k.col(i) - f_pos_k);
 
+		// Repurpose the previously-unused v_k member (already sized 2 x T, never written to
+		// anywhere else in the codebase) to carry the genuine physical [vx; delta_f] pair per
+		// horizon step, since F_x (Newtons) is not an actuatable input on this vehicle -- only
+		// steering and a speed command are.
+		v_k(0,i) = vx;        // body-frame forward speed, m/s
+		v_k(1,i) = u_k(1,i);  // delta_f, rad
+
 		g_barrier(i,0) = (quadrotor.Fx_max*quadrotor.Fx_max - u_k(0,i)*u_k(0,i)) * (quadrotor.delta_f_max*quadrotor.delta_f_max - u_k(1,i)*u_k(1,i));
 
 		if (g_barrier(i,0) <= 0)

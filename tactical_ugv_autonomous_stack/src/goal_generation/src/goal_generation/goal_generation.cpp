@@ -455,17 +455,7 @@ void GOAL_GENERATION::simulator_socket_thread(LOGGER* log)
 							}
 						}
 						
-						// Attempt to obtain possession of the goal_lock
-						while(pthread_mutex_trylock(&pose_lock))
-						{
-
-							// wait for 20 microseconds
-							usleep(1);
-
-						} // while(pthread_mutex_trylock(&pose_lock))
-
-						// If the thread successfully obtains possession of the goal_lock, relinquish possession momentarily
-						pthread_mutex_unlock(&pose_lock);
+						// Acquire possession of the pose_lock (blocks efficiently instead of spin-polling trylock)
 						pthread_mutex_lock(&pose_lock);
 
 							pose[0] = boost::lexical_cast<float>(pose_recv[0]);
@@ -507,17 +497,7 @@ void GOAL_GENERATION::simulator_socket_thread(LOGGER* log)
 				// if (bytes_read_map == 300000)
 				// {
 
-					// Attempt to obtain possession of the goal_lock
-					while(pthread_mutex_trylock(&map_lock))
-					{
-
-						// wait for 10 microseconds
-						usleep(1);
-
-					} // while(pthread_mutex_trylock(&pose_lock))
-
-					// If the thread successfully obtains possession of the goal_lock, relinquish possession momentarily
-					pthread_mutex_unlock(&map_lock);
+					// Acquire possession of the map_lock (blocks efficiently instead of spin-polling trylock)
 					pthread_mutex_lock(&map_lock);
 
 						counter = 0;
@@ -677,15 +657,9 @@ void GOAL_GENERATION::simulator_socket_thread(LOGGER* log)
 			if (client.socket_active[5])
 			{
 
-				while(pthread_mutex_trylock(&goal_lock))
-				{
-					// wait for 20 microseconds
-					usleep(1);
-				} // while(pthread_mutex_trylock(&goal_lock))
-
-				pthread_mutex_unlock(&goal_lock);
+				// Acquire possession of the goal_lock (blocks efficiently instead of spin-polling trylock)
 				pthread_mutex_lock(&goal_lock);
-	
+
 					if (firstPassComplete)
 					{
 						sim_socket_thread_goal[0] = goalPosition(0,0); sim_socket_thread_goal[1] = goalPosition(0,1); sim_socket_thread_goal[2] = goalPosition(0,2);
@@ -749,6 +723,28 @@ void GOAL_GENERATION::simulator_socket_thread(LOGGER* log)
 		timeElapsed_map = end_time - current_time_map;
 		timeElapsed_pose = end_time - current_time_pose;
 		timeElapsed_goal = end_time - current_time_goal;
+
+		// Sleep until the next of the three timers above is due, instead of spinning the CPU
+		// re-checking high_resolution_clock::now() as fast as possible every iteration (this was
+		// the dominant cause of this thread pinning a full CPU core). Bounded by whichever timer
+		// is closest to firing, so trigger latency is unaffected relative to the previous busy loop.
+		{
+			long remaining_map_us = static_cast<long>(map_time_us
+				- std::chrono::duration_cast<std::chrono::microseconds>(timeElapsed_map).count());
+			long remaining_pose_us = static_cast<long>(pose_time_us
+				- std::chrono::duration_cast<std::chrono::microseconds>(timeElapsed_pose).count());
+			long remaining_goal_us = static_cast<long>(goal_time_us
+				- std::chrono::duration_cast<std::chrono::microseconds>(timeElapsed_goal).count());
+
+			long sleep_us = remaining_map_us;
+			if (remaining_pose_us < sleep_us) sleep_us = remaining_pose_us;
+			if (remaining_goal_us < sleep_us) sleep_us = remaining_goal_us;
+
+			if (sleep_us > 0)
+			{
+				usleep(sleep_us);
+			}
+		}
 
 		// if (!(_interface_loops % 1000))
 		// {
@@ -1101,6 +1097,22 @@ void GOAL_GENERATION::octree_thread(const string& param_file_name, LOGGER* log)
 	while(found == std::string::npos)
 	{
 
+		// If we have run off the end of the file without finding the marker, this parameter
+		// is missing from System_params.txt -- without this check, getline() on an exhausted
+		// stream just keeps failing (leaving file_line unchanged) and this loop spins forever,
+		// pinning a CPU core while octree_thread never reaches the code that computes a goal
+		// (goalPosition then stays at its zero-initialized value for the life of the process).
+		if (param_file.eof())
+		{
+
+			message = "<OCTREE THREAD> Unable to find '// Half of camera' parameter in "
+				"../../trajectory_planner/build/Parameter_Files/System_params.txt";
+			cout << message << endl;
+			writeStatus = log->writeToLog(message);
+			std::raise(SIGINT);
+
+		} // if (param_file.eof())
+
 		// get the next line
 		ss.clear();
 		getline(param_file, file_line);
@@ -1179,17 +1191,7 @@ void GOAL_GENERATION::octree_thread(const string& param_file_name, LOGGER* log)
 	// While loop which exits when the exit_thread signal is raised
 	while(!exit_thread)
 	{
-		// Attempt to obtain possession of the pose_lock
-		while(pthread_mutex_trylock(&pose_lock))
-		{
-
-			// Pause for 20 microseconds
-			usleep(1);
-
-		} // while(pthread_mutex_trylock(&pose_lock))
-
-		// If the thread obtained possession of the pose_lock, relinquish possession momentarily
-		pthread_mutex_unlock(&pose_lock);
+		// Acquire possession of the pose_lock (blocks efficiently instead of spin-polling trylock)
 		pthread_mutex_lock(&pose_lock);
 
 			// Record the quadrotor pose into a variable local to this function
@@ -1212,17 +1214,7 @@ void GOAL_GENERATION::octree_thread(const string& param_file_name, LOGGER* log)
 		vehicle_orientation(0) = cos(quad_heading);
 		vehicle_orientation(1) = sin(quad_heading);
 
-		// Attempt to obtain possession of the goal_lock
-		while(pthread_mutex_trylock(&map_lock))
-		{
-
-			// Pause for 10 microseconds
-			usleep(1);
-
-		} // while(pthread_mutex_trylock(&map_lock))
-
-		// If the thread obtained possession of the goal_lock, relinquish possession momentarily
-		pthread_mutex_unlock(&map_lock);
+		// Acquire possession of the map_lock (blocks efficiently instead of spin-polling trylock)
 		pthread_mutex_lock(&map_lock);
 
 			// Iterate over lateral direction
@@ -1478,13 +1470,9 @@ void GOAL_GENERATION::octree_thread(const string& param_file_name, LOGGER* log)
 					// Set the matrix to the partition vertices
 					binVertices = octree_binVertices;
 
-					while(pthread_mutex_trylock(&goal_lock))
-					{
-						usleep(1);
-					} // while(pthread_mutex_trylock(&goal_lock))
-					pthread_mutex_unlock(&goal_lock);
+					// Acquire possession of the goal_lock (blocks efficiently instead of spin-polling trylock)
 					pthread_mutex_lock(&goal_lock);
-			
+
 						// Set the goal position
 						goalPosition = octree_goalPosition;
 

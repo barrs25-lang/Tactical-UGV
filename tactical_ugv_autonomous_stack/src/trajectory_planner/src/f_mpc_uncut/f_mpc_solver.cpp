@@ -353,8 +353,8 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 	{
 
 		// 28 for the initial boundary conditions (chi has no heading/altitude state to constrain)
-		quadrotor.num_hard_x = collisionConstraints.rows() + 28;
-		int num_obstacle_constraints = quadrotor.num_hard_x - 28;
+		quadrotor.num_hard_x = collisionConstraints.rows() + 8; //28 orig
+		int num_obstacle_constraints = quadrotor.num_hard_x - 8;
 
 		// Set new float arrays to store constraint data
 		bomt.FxX_array = new float[quadrotor.num_hard_x*mpc_params.T];
@@ -435,7 +435,7 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 	{
 
 		// State constraints: 4 for box constraints, 28 for boundary conditions
-		quadrotor.num_hard_x = 4 + 28;
+		quadrotor.num_hard_x = 4 + 8; //28 orig
 
 		// Set the size of the hard constraints and bounds. Their elements are set to zero
 		quadrotor.eig_Fx_hard = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,quadrotor.n);
@@ -498,7 +498,7 @@ void F_MPC_UNCUT::fmpc_hard_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 	else
 	{
 		// State constraints: 4 for box constraints, 28 for boundary conditions
-		quadrotor.num_hard_x = 4 + 28;
+		quadrotor.num_hard_x = 4 + 8; //28 orig
 
 		// Set the size of the hard constraints and bounds. Their elements are set to zero
 		quadrotor.eig_Fx_hard = Eigen::MatrixXf::Zero(quadrotor.num_hard_x,quadrotor.n);
@@ -609,7 +609,7 @@ void F_MPC_UNCUT::fmpc_soft_constraints(Eigen::MatrixXf* eig_X, int segment_numb
 	{
 
 		// Compute the number of collision avoidance constraints
-		int num_obstacle_constraints = quadrotor.num_hard_x - 28;
+		int num_obstacle_constraints = quadrotor.num_hard_x - 8; //28 orig
 
 		// ******************************************** //
 		// Set the soft collision avoidance constraints //
@@ -933,6 +933,7 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 		//this loop establishes a trajectory proposal from the start to the goal.
 		while (cont)
 		{
+
 			// If, for whatever reason, a trajectory proposal cannot be found within a conservative amount of time, abort the process
 			duration = (clock() - startTime) / (double)CLOCKS_PER_SEC;
 			if(duration > mpc_params.delta_t)
@@ -1060,10 +1061,16 @@ bool F_MPC_UNCUT::fmpcsolve(Eigen::MatrixXf* X, Eigen::MatrixXf* U, int segment_
 
 		} 
 
-		if (mpc_params.line_search_style == 0)
-		{
-			s /= mpc_params.beta; //through the changes made i the preceding loop, s is multiplied by beta one more time on exit. This corrects that.
-		}
+		// NOTE: this block used to divide s by mpc_params.beta here, on the claim that "the
+		// preceding loop multiplies s by beta one more time on exit" and needed correcting. That
+		// claim doesn't hold: s *= beta happens BEFORE the feasibility test in every pass of the
+		// loop above, so the value of s at loop exit is exactly the one already tested and
+		// confirmed to satisfy every hard constraint (see bomt.xdz_x/bomt.udz_u/bomt.FxX/bomt.FuU
+		// computed with this same s just above). Dividing by beta replaced that validated step
+		// with a larger, never-tested one -- confirmed live to violate the hard control bound
+		// (e.g. tested s=0.027 gave FuU=12.6 <= 30, but the "corrected" s=0.09 gave FuU=42.1 > 30)
+		// -- which is what fed an infeasible (X,U) into the next Newton iteration and ultimately
+		// caused the feasibility search to fail outright a few iterations later.
 		// s = golden_section_line_search();
 		// s = fibonacci_line_search();
 

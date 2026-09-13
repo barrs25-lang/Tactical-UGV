@@ -7,20 +7,34 @@ dense layout the legacy binaries hardcode and republishes it as /ugv/map (see
 src/perception/octomap_to_voxelmap_node.cpp for the exact index/byte-order/cell-code contract).
 goal_generation_bridge publishes /ugv/goal, which path_planner_bridge consumes and turns into
 /ugv/path, which trajectory_planner_bridge consumes and turns into /ugv/trajectory (state) and
-/ugv/control_sequence (F_x, delta_f). constraint_generation_bridge consumes /ugv/map + /ugv/pose
-(same as goal_generation) and publishes /ugv/constraints, which trajectory_planner_bridge also
-consumes. /ugv/pose and the camera's own point-cloud/driver stack (e.g. a ZED wrapper launch)
-are still expected to come from elsewhere -- they are not started by this file. Until something
-publishes /ugv/pose, and until octomap_server is actually receiving a point cloud, the
+/ugv/control_sequence ([vx, delta_f] -- NOT [F_x, delta_f]; see msg/ControlSequence.msg and
+f_mpc_feedback_linearization.cpp's v_k for why F_x isn't usable on this vehicle).
+control_sequence_to_ackermann consumes /ugv/control_sequence and republishes it as an
+AckermannDriveStamped on /drive for the separately-launched f1tenth stack's /ackermann_mux to
+arbitrate (see src/perception/control_sequence_to_ackermann_node.cpp for the full safety/rate
+contract -- this is the only node in this launch file that can move the physical vehicle).
+constraint_generation_bridge consumes /ugv/map + /ugv/pose (same as goal_generation) and
+publishes /ugv/constraints, which trajectory_planner_bridge also consumes. /ugv/pose is provided
+by zed_odom_to_legacy_pose, which republishes the ZED wrapper's odometry (/zed/zed_node/odom) as
+LegacyPose (see src/perception/zed_odom_to_legacy_pose_node.cpp for the field-usage audit and the
+finite-differencing used to derive velocity, since this installed ZED wrapper build never
+populates the odometry message's twist). Only the camera's own point-cloud/driver stack (e.g. a
+ZED wrapper launch) and the f1tenth stack (VESC driver, ackermann_mux, ackermann_to_vesc_node)
+are still expected to come from elsewhere -- neither is started by this file. Until octomap_server
+is actually receiving a point cloud and the ZED wrapper is actually publishing odometry, the
 corresponding legacy binaries will simply block waiting for that first message, exactly as they
 already block waiting for a TCP connection.
 
 octomap_server's `frame_id` below MUST be set to whatever frame the camera's own driver/wrapper
-publishes as its stable, start-anchored world frame (commonly "odom") -- octomap_to_voxelmap does
-not track vehicle pose itself, it relies on octomap_server having already transformed points into
-that frame via tf, so that frame's origin is the vehicle's start location. `cloud_in` must be
-remapped to whatever topic that camera driver actually publishes its point cloud on. Both are
-placeholders here and need to be confirmed against the real camera setup before this will work.
+publishes as its stable, start-anchored world frame -- octomap_to_voxelmap does not track vehicle
+pose itself, it relies on octomap_server having already transformed points into that frame via
+tf, so that frame's origin is the vehicle's start location. Confirmed against this system's live
+ZED wrapper as "odom" (it publishes a dynamic odom -> zed_camera_link tf and never publishes a
+base_link frame at all -- setting frame_id to a frame that doesn't exist makes octomap_server
+silently fail to transform every cloud and never insert any points, which is what happened before
+this was fixed). If the camera driver changes, re-confirm this against its actual tf tree
+(`ros2 run tf2_ros tf2_echo <candidate_frame> <point_cloud's own frame_id>`) rather than assuming.
+`cloud_in` is remapped below to this system's actual ZED point-cloud topic.
 
 The legacy binaries (goal_generation, path_planner, fmpc_uncut, constraint_generation) are built
 by each package's own plain CMakeLists.txt under
@@ -70,12 +84,22 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'resolution': 0.2,
-                # MUST match the camera driver's stable, start-anchored world frame.
-                'frame_id': 'base_link',
-                'pointcloud_min_x': -10.0,
-                'pointcloud_max_x': 10.0,
-                'pointcloud_min_y': -10.0,
-                'pointcloud_max_y': 10.0,
+                # Confirmed against the live ZED wrapper's actual TF tree: it publishes odom as
+                # the dynamic world frame (odom -> zed_camera_link -> ... -> camera optical
+                # frames), and never publishes a base_link frame at all. octomap_server would
+                # otherwise silently fail to transform every point cloud and never insert any
+                # points, since canTransform() to a nonexistent frame always fails.
+                'frame_id': 'odom',
+                # Matches octomap_to_voxelmap's world<->voxel convention, which is in turn
+                # matched to the legacy planner binaries' own (goal_generation/octree.h,
+                # path_planner/LPAstar.cpp): corner-anchored at the vehicle's start, 0 to +20m
+                # horizontally, 0 to +6m vertically -- NOT centered on start. A previous version
+                # cropped -10..+10 here (centered), which silently discarded real detections
+                # beyond 10m even after octomap_to_voxelmap was fixed to expect up to 20m.
+                'pointcloud_min_x': 0.0,
+                'pointcloud_max_x': 20.0,
+                'pointcloud_min_y': 0.0,
+                'pointcloud_max_y': 20.0,
                 'pointcloud_min_z': 0.0,
                 'pointcloud_max_z': 6.0,
             }],
@@ -89,6 +113,33 @@ def generate_launch_description():
             executable='octomap_to_voxelmap',
             name='octomap_to_voxelmap',
             output='screen',
+        ),
+        Node(
+            package='tactical_ugv_autonomous_stack',
+            executable='zed_odom_to_legacy_pose',
+            name='zed_odom_to_legacy_pose',
+            output='screen',
+        ),
+
+        # --- Actuation: /ugv/control_sequence -> /drive for the f1tenth stack's ackermann_mux.
+        # max_speed_mps is the ONLY speed bound anywhere in this pipeline (the solver has no
+        # vx_max constraint); max_steering_angle_rad matches this vehicle's real VESC servo
+        # saturation (~0.29 rad), not the solver's own looser delta_f_max=0.5 rad bound. Tune
+        # max_speed_mps deliberately before running with the physical drivetrain live -- there is
+        # no dedicated e-stop on this vehicle, only the joystick deadman override on /teleop. ---
+        Node(
+            package='tactical_ugv_autonomous_stack',
+            executable='control_sequence_to_ackermann',
+            name='control_sequence_to_ackermann',
+            output='screen',
+            parameters=[{
+                'control_sequence_topic': '/ugv/control_sequence',
+                'drive_topic': '/drive',
+                'max_speed_mps': 1.0,
+                'max_steering_angle_rad': 0.29,
+                'command_stale_timeout_sec': 0.5,
+                'publish_rate_hz': 20.0,
+            }],
         ),
 
         # --- ROS2 bridge nodes (comm_server replacement) ---
