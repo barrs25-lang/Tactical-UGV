@@ -1,1 +1,1 @@
-TIME: 0.0826 - SYSTEM: <INTERFACE-THREAD> Starting interface thread.
+TIME: 1.198 - SYSTEM: <INTERFACE-THREAD> Starting interface thread.

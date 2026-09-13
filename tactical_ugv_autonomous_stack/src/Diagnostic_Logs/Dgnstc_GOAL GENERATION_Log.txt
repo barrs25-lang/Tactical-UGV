@@ -1,8 +1,11 @@
-TIME: 0.001217 - SYSTEM: <GOAL GENERATION> Starting goal generation.
-TIME: 0.001399 - SYSTEM: <GOAL GENERATION> Threads started.
-TIME: 0.004282 - SYSTEM: <OCTREE THREAD> Opening parameter file: octree_params_default
-TIME: 0.004356 - SYSTEM: <OCTREE THREAD> Opened file: Parameter_Files/octree_params_default.txt
-TIME: 0.004741 - SYSTEM: <OCTREE THREAD> Finished reading file: Parameter_Files/octree_params_default.txt
-TIME: 0.004784 - SYSTEM: <OCTREE THREAD> Closed file: Parameter_Files/octree_params_default.txt
-TIME: 0.004821 - SYSTEM: <OCTREE THREAD> Opened file: ../../trajectory_planner/build/Parameter_Files/System_params.txt
-TIME: 0.1261 - SYSTEM: <SIM-SOCKET THREAD> Started simulator socket thread.
+TIME: 0.0008864 - SYSTEM: <GOAL GENERATION> Starting goal generation.
+TIME: 0.00126 - SYSTEM: <GOAL GENERATION> Threads started.
+TIME: 0.01201 - SYSTEM: <OCTREE THREAD> Opening parameter file: octree_params_default
+TIME: 0.0124 - SYSTEM: <OCTREE THREAD> Opened file: Parameter_Files/octree_params_default.txt
+TIME: 0.02192 - SYSTEM: <SIM-SOCKET THREAD> Started simulator socket thread.
+TIME: 0.029 - SYSTEM: <OCTREE THREAD> Finished reading file: Parameter_Files/octree_params_default.txt
+TIME: 0.02927 - SYSTEM: <OCTREE THREAD> Closed file: Parameter_Files/octree_params_default.txt
+TIME: 0.02941 - SYSTEM: <OCTREE THREAD> Opened file: ../../trajectory_planner/build/Parameter_Files/System_params.txt
+TIME: 0.03 - SYSTEM: <OCTREE THREAD> Closed file: ../../trajectory_planner/build/Parameter_Files/System_params.txt
+TIME: 0.03012 - SYSTEM: <OCTREE THREAD> Closed file: ../../trajectory_planner/build/Parameter_Files/System_params.txt
+TIME: 5.341 - SYSTEM: <OCTREE THREAD> Octree thread begins.

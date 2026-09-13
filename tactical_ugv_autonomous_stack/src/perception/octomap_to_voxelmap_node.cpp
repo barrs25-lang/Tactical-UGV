@@ -6,8 +6,16 @@
 // Anchoring: this node does NOT track vehicle pose itself. octomap_server is expected to be
 // configured with frame_id set to the camera's start-anchored world frame (ZED's VIO/odometry
 // frame is identity at power-on), so octree coordinate (0,0,0) already IS the vehicle's start
-// location by the time a cloud reaches the octree. Horizontal axes are centered on that origin
-// (+-10m); the vertical axis treats start height as the floor (0 to +6m), not centered.
+// location by the time a cloud reaches the octree. All three axes are corner-anchored at that
+// origin, 0 to +20m horizontally and 0 to +6m vertically (NOT centered on start) -- this must
+// match the legacy planner binaries' own world<->voxel convention: goal_generation's octree.h
+// and path_planner's LPAstar.cpp both convert with a bare `position / voxel_resolution`, no
+// offset, so voxel index 0 is world 0 for them too. A previous version of this node centered
+// the horizontal axes on start (+-10m, voxel 50 = world 0), which put the legacy binaries'
+// real-world start position at voxel ~(0,0) -- wedged against the forced-occupied boundary ring
+// below -- and left goal_generation reading "explored" cells 10m away from where they actually
+// are. If you re-derive this mapping, re-derive it from the legacy code's own convention, not
+// from what seems geometrically natural for the new ROS2 side.
 //
 // Cell coding: 1 = free, 3 = occupied (the only two codes any legacy binary's live code path
 // checks), 0 = unknown/unobserved. Unknown is a real third state, not a placeholder -- without
@@ -19,6 +27,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <tuple>
 
 #include "rclcpp/rclcpp.hpp"
 #include "octomap/octomap.h"
@@ -28,12 +37,14 @@
 
 namespace
 {
-constexpr int kGridX = 100;   // i: horizontal, centered on start, +-10m
+constexpr int kGridX = 100;   // i: horizontal, start-anchored, 0 to +20m
 constexpr int kGridY = 30;    // j: vertical, start height is the floor, 0 to +6m
-constexpr int kGridZ = 100;   // k: horizontal, centered on start, +-10m
+constexpr int kGridZ = 100;   // k: horizontal, start-anchored, 0 to +20m
 constexpr double kResolution = 0.2;
-constexpr double kHorizontalHalfSpan = 10.0;
 constexpr std::size_t kBufferSize = static_cast<std::size_t>(kGridX) * kGridY * kGridZ;
+static_assert(
+	kBufferSize == std::tuple_size<decltype(tactical_ugv_autonomous_stack::msg::VoxelMap::data)>::value,
+	"kBufferSize must match VoxelMap.msg's fixed-size data array");
 
 constexpr int8_t kUnknown = 0;
 constexpr int8_t kFree = 1;
@@ -84,19 +95,18 @@ private:
 
 		tactical_ugv_autonomous_stack::msg::VoxelMap map_msg;
 		map_msg.header.stamp = this->now();
-		map_msg.header.frame_id = "map";
+		map_msg.header.frame_id = "odom";
 		map_msg.size_x = kGridX;
 		map_msg.size_y = kGridY;
 		map_msg.size_z = kGridZ;
 		map_msg.resolution = kResolution;
-		map_msg.data.resize(kBufferSize);
 
 		for (int k = 0; k < kGridZ; ++k) {
-			const double y_world = -kHorizontalHalfSpan + (k + 0.5) * kResolution;
+			const double y_world = (k + 0.5) * kResolution;
 			for (int j = 0; j < kGridY; ++j) {
 				const double z_world = (j + 0.5) * kResolution;
 				for (int i = 0; i < kGridX; ++i) {
-					const double x_world = -kHorizontalHalfSpan + (i + 0.5) * kResolution;
+					const double x_world = (i + 0.5) * kResolution;
 
 					int8_t code = kUnknown;
 					octomap::OcTreeNode * node = tree->search(x_world, y_world, z_world);

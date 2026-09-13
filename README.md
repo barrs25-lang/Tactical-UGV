@@ -1,7 +1,31 @@
 # Tactical-UGV
 Tactical UGV codebase with MPC controller for Roboracer platform
 
+## ROS Graph Autonomous Stack Architecture for UGV with F1tenth Stack
+![alt text](Images/UGV_ROS_Stack.png)
+
+The intent of this codebase is to run a fully autonomous navigation and mapping stack, deployable with the f1tenth stack.
+
+The stack is architected as follows:
+- Depth Camera module
+  - ROS stack for the ZED 2i camera
+- Octomap ROS2 package - subscribes to depth camera point cloud
+  - Produces occupancy grid for goal generation/constraints/pathplanner
+- Autonomous stack modules
+  - Goal generation - Determine goal point from occupancy grid
+  - Constraint generation - Ellipsoid constraint for obstacle avoidance
+  - Path planner - LPA*
+  - Trajectory planner - Feedback linearized fast MPC 
+    - Publish control inputs to /drive topic in f1tenth stack
+
 ## Compile and Run 
+For this package to run properly ensure that you have followed all the steps to install ros2 humble succesfully (Using humble for Ubuntu 22.04 on Nvidia Jetson Nano Orin)
+
+To Compile all of the binaries and build the ros2 package with all of the dependencies, run 
+```bash
+./setup.sh
+```
+from the top level of the directory. 
 
 ## Refactor from the original UAV codebase
 
