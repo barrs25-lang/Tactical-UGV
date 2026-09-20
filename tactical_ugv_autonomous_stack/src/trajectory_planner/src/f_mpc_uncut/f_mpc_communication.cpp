@@ -514,9 +514,12 @@ void F_MPC_UNCUT::communication_thread()
 								// }
 								// j++;
 								// cout << "constraints_recv[" << 4*i << "]: " << constraints_recv[4*i] << endl;
-								tempcollisionConstraints(i,0) = boost::lexical_cast<float>(constraints_recv[4*i]);
+								// constraint_generation builds its obstacle points as (0.2*k, 0.2*i, 0.2*j) from the voxel map
+								// (constraint.cpp), i.e. with x and y swapped relative to the odom frame the MPC state, path and
+								// goal are in (voxel i = odom x, k = odom y), so the a and b coefficients are swapped here.
+								tempcollisionConstraints(i,0) = boost::lexical_cast<float>(constraints_recv[4*i+1]);
 								// cout << "constraints_recv[" << 4*i+1 << "]: " << constraints_recv[4*i+1] << endl;
-								tempcollisionConstraints(i,1) = boost::lexical_cast<float>(constraints_recv[4*i+1]);
+								tempcollisionConstraints(i,1) = boost::lexical_cast<float>(constraints_recv[4*i]);
 								// cout << "constraints_recv[" << 4*i+2 << "]: " << constraints_recv[4*i+2] << endl;
 								tempcollisionConstraints(i,2) = boost::lexical_cast<float>(constraints_recv[4*i+2]);
 								tempcollisionConstraints(i,3) = 20+boost::lexical_cast<float>(constraints_recv[4*i+3]);

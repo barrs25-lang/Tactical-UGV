@@ -2265,12 +2265,15 @@ void CONSTRAINT::flightstack_interface_thread(struct System* quad)
 							if (counter > 0)
 							{
 
+								// Vehicle position/velocity in the same frame as the obstacle points built from the voxel map,
+								// (0.2*k, 0.2*i, 0.2*j) = (odom y, odom x, odom z) -- see the point_cloud fill below. pose[] is
+								// x,y,z,dx,dy,dz,... in odom, so x and y are swapped and no axis is negated.
 								(*quad).X0[0] = boost::lexical_cast<float>(pose_recv[1]);
-								(*quad).X0[1] = -boost::lexical_cast<float>(pose_recv[0]);
-								(*quad).X0[2] = -boost::lexical_cast<float>(pose_recv[2]);
+								(*quad).X0[1] = boost::lexical_cast<float>(pose_recv[0]);
+								(*quad).X0[2] = boost::lexical_cast<float>(pose_recv[2]);
 								(*quad).V0[0] = boost::lexical_cast<float>(pose_recv[4]);
-								(*quad).V0[1] = -boost::lexical_cast<float>(pose_recv[3]);
-								(*quad).V0[2] = -boost::lexical_cast<float>(pose_recv[5]);
+								(*quad).V0[1] = boost::lexical_cast<float>(pose_recv[3]);
+								(*quad).V0[2] = boost::lexical_cast<float>(pose_recv[5]);
 								pose[0] = boost::lexical_cast<float>(pose_recv[0]);
 								pose[1] = boost::lexical_cast<float>(pose_recv[1]);
 								pose[2] = boost::lexical_cast<float>(pose_recv[2]);

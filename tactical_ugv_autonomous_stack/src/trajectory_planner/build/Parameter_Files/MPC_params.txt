@@ -18,8 +18,8 @@
 0    0    0    400
 //////////////////////////////////////////////
 // R_{\lambda} (m x m) -- placeholder quadratic weights on virtual control [lambda_x, lambda_y]
-100  0
-0  100
+10  0
+0  10
 //////////////////////////////////////////////
 // tilde_R_{r,\lambda} (n x m)
 0 0
@@ -38,7 +38,7 @@
 0
 //////////////////////////////////////////////
 //T: see Boyd eqn. 4
-5
+10
 //////////////////////////////////////////////
 //delta_t: temporal difference between successive timesteps
 0.1

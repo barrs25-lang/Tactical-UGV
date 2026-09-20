@@ -244,10 +244,12 @@ void F_MPC_UNCUT::update_quadrotor_pose()
 {
 
 	quadrotor.X0 *= 0;
-	quadrotor.X0(0) = pose[1]; // x
-	quadrotor.X0(1) = -pose[0]; // y
-	current_position(2) = pose[4]; // xdot
-	quadrotor.X0(3) = -pose[3]; // ydot
+	// chi = [x, y, xdot, ydot] in the same (odom) frame as the path, goal and constraints, and as the
+	// heading psi = pose[14]; pose[] is laid out x,y,z,dx,dy,dz,... (see f_mpc_uncut.h)
+	quadrotor.X0(0) = pose[0]; // x
+	quadrotor.X0(1) = pose[1]; // y
+	quadrotor.X0(2) = pose[3]; // xdot
+	quadrotor.X0(3) = pose[4]; // ydot
 
 	// Current 3D position, tracked separately from the planar QP state chi (see declaration in
 	// f_mpc_uncut.h). Heading psi and yaw rate dpsi are likewise read directly from pose[] where
@@ -1560,8 +1562,12 @@ void F_MPC_UNCUT::trajectory_planner_thread()
 			for (int i = 0; i < mpc_params.nu_X; i++)
 			{
 
-				if ((full_trajectory[i].block(0,0,2,mpc_params.T).array() < 0.0).any() || (full_trajectory[i].block(0,0,2,mpc_params.T).array() > 20.0).any())
+				// The trajectory is in the MPC frame (x_m = pose.y, y_m = -pose.x), which has no fixed
+				// [0, map size] range, so only reject plans that are non-finite or absurdly far away.
+				Eigen::MatrixXf xy_check = full_trajectory[i].block(0,0,2,mpc_params.T);
+				if (!xy_check.allFinite() || xy_check.cwiseAbs().maxCoeff() > 1000.0)
 				{
+					cout << "discarding plan: segment " << i << " is non-finite or out of range" << endl;
 					badTraj = 1;
 				}
 			}

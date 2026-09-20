@@ -66,9 +66,9 @@
 //////////////////////////////////////////////
 //Hard Control Bounds Vector: see f_u in Boyd eqn. 3 -- placeholder RC-car-like limits: F_x_max = 30 N, delta_f_max = 0.5 rad
 30
-0.5
 30
-0.5
+30
+30
 //////////////////////////////////////////////
 //Number of Soft Control Constraints
 //Note: soft constraints should represent desired behaviors of the system, e.g. "it should be
@@ -83,15 +83,15 @@
 //////////////////////////////////////////////
 //Soft Control Bounds Vector -- placeholder values, tighter than the hard bounds above
 24
-0.4
 24
-0.4
+24
+24
 //////////////////////////////////////////////
 // F_x_max: maximum longitudinal force (N), used in the feedback-linearized control law's barrier constraint -- matches the hard control bound above
 30
 //////////////////////////////////////////////
 // delta_f_max: maximum front steering angle (rad), used in the feedback-linearized control law's barrier constraint -- matches the hard control bound above
-0.5
+2.0
 //////////////////////////////////////////////
 // boundary condition slack: bc_epsilon
 0.05
